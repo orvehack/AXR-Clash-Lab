@@ -19,9 +19,11 @@ La licencia MIT permite reutilizar y modificar código si se conservan el aviso 
 - Repositorio: https://github.com/Pbatch/ClashRoyaleBuildABot
 - README revisado: https://github.com/Pbatch/ClashRoyaleBuildABot/blob/main/README.md
 - El README describe generación de estados y visión por computadora, y limita expresamente el uso a investigación/educación; también advierte que usarlo conectado al juego está prohibido por sus términos y puede ocasionar sanciones.
-- Estado de licencia: no se pudo recuperar un archivo raíz llamado LICENSE en esta revisión. El README menciona una licencia aplicable y créditos, pero eso no basta para determinar con seguridad sus permisos exactos.
+- Licencia: se encontró LICENSE.md con licencia MIT; la búsqueda de GitHub devolvió el archivo en el repositorio upstream.
+- Enfoque anunciado: generación de estados y visión por computadora; su README restringe el uso a educación/investigación y advierte contra conectarlo al juego competitivo.
+- Posible uso en AXR: estudiar la arquitectura de percepción/estado y, si se reutilizan componentes, conservar el aviso MIT y las atribuciones correspondientes.
 
-**Regla:** no copiar ni distribuir código de este repositorio hasta identificar y revisar la licencia aplicable. Podemos estudiar documentación pública y diseñar interfaces compatibles sin copiar su implementación.
+La licencia MIT permite reutilizar y modificar código si se conserva el aviso de copyright y el texto de licencia aplicable. Antes de copiar archivos concretos, aún debemos revisar sus dependencias, licencias de terceros, instrucciones de uso y compatibilidad técnica.
 
 ## 3. Plan de integración de AXR Clash Lab
 

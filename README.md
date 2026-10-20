@@ -1,81 +1,80 @@
 # AXR Clash Lab 🧪⚔️
 
-**AXR Clash Lab** es un laboratorio modular para analizar partidas de Clash Royale, estudiar decisiones y desarrollar una IA en un entorno de simulación. La idea es construir una aplicación de escritorio con una interfaz inspirada en la organización visual de **py-clash-bot**, pero con funciones propias de análisis, entrenamiento y visualización.
+**AXR Clash Lab** es un laboratorio modular para analizar partidas de Clash Royale, preparar datos de decisiones, lanzar un emulador Android local y desarrollar agentes de IA mediante simulación offline.
 
-> Estado real: la base del proyecto y algunas herramientas de análisis ya existen. La interfaz gráfica final, la integración completa del simulador y el modelo entrenado todavía están pendientes.
+La aplicación de escritorio de AXR tiene una interfaz propia inspirada en patrones comunes de paneles de control. **No copia archivos fuente, imágenes ni rutinas internas de py-clash-bot.**
 
-## Objetivos
+> **Estado honesto:** el repositorio contiene módulos iniciales de estadísticas, preparación de datos, interfaz, evaluación, configuración de entrenamiento y gestión de emuladores. La compatibilidad real con cada versión de RoyaleGym/RoyaleLearn y la ejecución en el PC del usuario todavía requieren pruebas.
 
-- Registrar resultados, mazos, cambios de trofeos y notas.
-- Resumir victorias/derrotas y analizar rivales desde CSV.
-- Crear un formato para etiquetar decisiones de partidas y replays.
-- Integrar un simulador offline para experimentar con políticas de IA.
-- Preparar una ruta de aprendizaje por imitación y, más adelante, entrenamiento por refuerzo.
-- Construir una interfaz de escritorio clara para estadísticas, partidas, entrenamiento, modelos y registros.
-- Mantener módulos separados para poder probarlos y cambiarlos sin rehacer todo el proyecto.
+## Funciones y módulos
 
-## Estado actual
-
-### Implementado en el repositorio
-- Registro de ejemplo en `data/matches.csv` (los registros incluidos son ficticios).
-- Analizador inicial de partidas en `src/analyze_matches.py`.
-- Estadísticas reutilizables y CLI en `src/match_stats.py`.
-- Pruebas unitarias iniciales en `tests/test_match_stats.py`.
-- Plantilla para etiquetar decisiones en `data/decisions_template.csv`.
-- Hoja de ruta y arquitectura propuesta en `docs/ROADMAP.md` y `docs/AI_ARCHITECTURE.md`.
-- Adaptador de diagnóstico para comprobar la instalación y describir el entorno de RoyaleGym, sin ejecutar acciones de juego, en `src/simulator_adapter.py`.
-- Pruebas con un entorno simulado para ese adaptador en `tests/test_simulator_adapter.py`.
-- Instrucciones de instalación y diagnóstico para Windows en `docs/ROYALEGYM_SETUP.md`.
-- Auditoría inicial de proyectos externos y estrategia de integración en `docs/INTEGRATION_AUDIT.md`.
-
-### Todavía pendiente
-- Ejecutar y verificar las pruebas en la PC de desarrollo.
-- Confirmar la instalación y API de RoyaleGym en ese entorno.
-- Implementar una primera política de IA y evaluación reproducible.
-- Diseñar e implementar la interfaz gráfica de AXR.
-- Crear herramientas de análisis de video offline y etiquetado asistido.
-- Entrenar y evaluar modelos con datos reales autorizados.
-
-## Proyectos externos que estamos estudiando
-
-Estos proyectos tienen responsabilidades diferentes; no se deben mezclar todos sus archivos a ciegas.
-
-| Proyecto | Posible función en AXR |
+| Ruta | Responsabilidad |
 |---|---|
-| [RoyaleGym](https://github.com/RoyaleGym/RoyaleGym) | Entorno de aprendizaje y observaciones/acciones del bot |
-| [RoyaleSim](https://github.com/RoyaleGym/RoyaleSim) | Motor de batallas offline |
-| [RoyaleLearn](https://github.com/RoyaleGym/RoyaleLearn) | Referencia para entrenamiento |
-| [RoyaleImitate](https://github.com/RoyaleGym/RoyaleImitate) | Referencia para aprendizaje por imitación |
-| [RoyaleViser](https://github.com/RoyaleGym/RoyaleViser) | Referencia para visualizar partidas |
-| [RoyaleBot](https://github.com/RoyaleGym/RoyaleBot) | Proyecto separado de ejecución de bots; requiere revisión específica antes de considerar cualquier uso |
-| [py-clash-bot](https://github.com/pyclashbot/py-clash-bot) | Referencia de organización de la interfaz y módulos de escritorio |
-| [ClashRoyaleBuildABot](https://github.com/Pbatch/ClashRoyaleBuildABot) | Investigar componentes reutilizables de percepción/estado y sus dependencias |
+| `src/axr_desktop.py` | Interfaz de escritorio y paneles locales |
+| `src/match_stats.py` | Métricas de partidas y trofeos desde CSV |
+| `src/analyze_matches.py` | Analizador inicial por CLI |
+| `src/decision_dataset.py` | Validación y auditoría de ejemplos etiquetados |
+| `src/simulator_adapter.py` | Diagnóstico de instalación y espacios de RoyaleGym |
+| `src/royalegym_baseline.py` | Agentes de referencia y evaluación offline |
+| `src/train_agent.py` | Configuración y punto de entrada de entrenamiento |
+| `src/emulator_manager.py` | Detección, diagnóstico y lanzamiento local de MEmu/BlueStacks |
+| `data/matches.csv` | Partidas de ejemplo ficticias |
+| `data/decisions_template.csv` | Plantilla para decisiones etiquetadas |
+| `tests/` | Pruebas unitarias de los contratos locales |
+| `.github/workflows/tests.yml` | Flujo de pruebas de GitHub Actions |
 
-La integración se hará por módulos, revisando APIs, licencias y dependencias, y conservando avisos de licencia cuando corresponda. Que un repositorio sea público no significa que su código ya esté integrado en AXR.
+## Lanzamiento de emuladores
 
-## Interfaz prevista
+AXR puede detectar e iniciar el programa del emulador; no instala el emulador ni inicia automáticamente sesión o partida.
 
-La interfaz propia de AXR aspira a reunir:
-- **Panel principal:** estado del proyecto y resumen de estadísticas.
-- **Partidas y análisis:** historial, mazos, rivales, resultados y notas.
-- **Replays y datos:** anotación manual y herramientas de análisis offline.
-- **Laboratorio de IA:** configuración de experimentos, entrenamiento y evaluaciones.
-- **Visor de simulaciones:** partidas guardadas y comparaciones entre políticas.
-- **Registros y configuración:** diagnósticos, dependencias y preferencias.
+Desde PowerShell, en la raíz del repositorio:
 
-La interfaz tomará inspiración visual de py-clash-bot, pero su diseño y funciones se adaptarán al laboratorio de AXR. No se promete compatibilidad visual exacta ni se reutiliza código de UI sin revisar primero sus condiciones de licencia.
+```powershell
+py -m src.emulator_manager detect
+py -m src.emulator_manager diagnostics
+py -m src.emulator_manager start --emulator memu
+# O para BlueStacks 5:
+py -m src.emulator_manager start --emulator bluestacks
+py -m src.emulator_manager status
+```
 
-## Inicio rápido
+Si el emulador está instalado en una ruta no estándar, hay que configurar esa ruta en `src/emulator_manager.py` antes de usarlo. El usuario debe abrir el juego manualmente. El módulo no automatiza clics, despliegue de cartas, cola de partidas ni otras acciones del cliente oficial.
 
-Requisitos previstos: Python 3.12 para la integración actual con RoyaleGym; Git.
+## Análisis y datos
 
-Consulta:
+```powershell
+py -m unittest discover -s tests -v
+py -m src.match_stats data/matches.csv
+py -m src.decision_dataset data/decisions_template.csv
+```
+
+Los datos incluidos en `data/matches.csv` son **ficticios** y solo sirven para probar la estructura. No representan el historial real del usuario.
+
+## Simulación y entrenamiento
+
+AXR estudia estos proyectos por separado y con revisión de APIs/licencias:
+
+- [RoyaleGym](https://github.com/RoyaleGym/RoyaleGym): entorno de simulación.
+- [RoyaleSim](https://github.com/RoyaleGym/RoyaleSim): motor de batallas.
+- [RoyaleLearn](https://github.com/RoyaleGym/RoyaleLearn): entrenamiento.
+- [RoyaleImitate](https://github.com/RoyaleGym/RoyaleImitate): aprendizaje por imitación.
+- [RoyaleViser](https://github.com/RoyaleGym/RoyaleViser): visualización de batallas guardadas.
+- [ClashRoyaleBuildABot](https://github.com/Pbatch/ClashRoyaleBuildABot): referencia para investigar percepción/estado.
+- [py-clash-bot](https://github.com/pyclashbot/py-clash-bot): referencia de funciones y organización de interfaz.
+
+La presencia de un módulo de entrenamiento no significa que ya exista un modelo entrenado. Primero hay que instalar dependencias, verificar la API y ejecutar pruebas y experimentos reproducibles.
+
+## Documentación
+
 - [Inicio en Windows](docs/QUICKSTART_WINDOWS.md)
 - [Preparación de RoyaleGym](docs/ROYALEGYM_SETUP.md)
 - [Arquitectura de IA](docs/AI_ARCHITECTURE.md)
 - [Auditoría de integración](docs/INTEGRATION_AUDIT.md)
 - [Hoja de ruta](docs/ROADMAP.md)
+- [Auditoría de py-clash-bot y emuladores](docs/PYCLASHBOT_RESEARCH.md)
 
-## Límites y seguridad
+## Licencias y límites
 
-AXR está pensado para investigación, análisis offline y simulación. No automatiza partidas competitivas en el cliente oficial ni intenta eludir mecanismos antitrampas. El proyecto no está afiliado, respaldado ni patrocinado por Supercell.
+La licencia de py-clash-bot es **NC-CL-1.0** para el código y CC BY-NC-SA 4.0 para assets/documentación; por ello este repositorio no copia sus archivos fuente ni sus recursos gráficos. Se revisarán las licencias individuales antes de cualquier reutilización de código.
+
+AXR se centra en investigación, análisis offline y simulación. No implementa evasión de antitrampas ni automatización de partidas competitivas en el cliente oficial. No está afiliado, respaldado ni patrocinado por Supercell.

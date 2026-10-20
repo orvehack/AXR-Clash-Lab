@@ -101,3 +101,15 @@ py -m src.royalegym_contract --steps 3
 ```
 
 Este comando es una prueba offline breve. Si falta RoyaleGym o cambia la API, imprime un diagnóstico JSON; no controla emuladores ni el juego oficial.
+
+
+## 8. Revisión de RoyaleLearn y compatibilidad del entrenador
+
+Se inspeccionaron `RoyaleLearn/README.md`, `royalelearn/learner.py` y su `pyproject.toml`.
+
+- El patrón público documentado es `Learner(build_env, ...).learn(total_steps=...)`; la función de entorno debe estar definida en el nivel superior de un módulo importable para que los workers puedan reconstruirla.
+- La clase `Learner` acepta los parámetros principales usados por `src/train_agent.py`, incluidos `opponent`, `n_envs`, `device`, `checkpoint_every`, los tamaños PPO, tasas de aprendizaje, `seed`, `viser` y `log_to_wandb`.
+- El entrenador de AXR crea un `ClashParallelEnv` con `RustEngine` y `DefaultStateMutator`; los nombres de las cartas son aceptados por el mutador, que los resuelve contra el catálogo del motor.
+- El paquete `royalelearn` base separa las dependencias de PyTorch en el extra `[torch]`; la instalación completa recomendada por los repositorios es `pip install "royalegym[all]"`.
+
+Esto mejora la confianza en que la forma general del punto de entrada coincide con la API pública, pero **no demuestra que el entrenamiento de AXR se ejecute correctamente**. Quedan pendientes la instalación efectiva, el preflight de `Learner`, una corrida corta con `RustEngine`, la verificación del checkpoint y el análisis de métricas. La revisión de fuentes no equivale a haber entrenado un modelo.

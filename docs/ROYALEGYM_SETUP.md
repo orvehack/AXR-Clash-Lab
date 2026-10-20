@@ -46,3 +46,18 @@ Las pruebas unitarias de los helpers usan objetos falsos y no requieren instalar
 5. Ejecutar episodios simulados con el motor Rust y registrar semillas, recompensas y resultados antes de entrenar un modelo.
 
 No conectes este adaptador a partidas competitivas reales. El objetivo aquí es simulación offline y experimentación reproducible.
+
+
+## Imitation learning y warm-start opcional
+
+La pipeline cooperativa usa [RoyaleImitate](https://github.com/RoyaleGym/RoyaleImitate) para producir un actor de demostraciones, y después [RoyaleLearn](https://github.com/RoyaleGym/RoyaleLearn) para afinarlo con PPO en el simulador.
+
+1. Instala la parte opcional de imitación según la guía upstream y comprueba que la versión de RoyaleGym/RoyaleLearn coincide con la del artefacto.
+2. Crea un actor de RoyaleImitate y conserva su carpeta de artefacto completa (incluye metadatos y huellas de prueba).
+3. Ejecuta un plan corto primero, sin entrenar:
+   `python -m src.train_agent --plan-only --steps 10000 --save-dir runs/axr_warmstart --warm-start runs/teacher-actor`
+4. Tras revisar la configuración, inicia una corrida pequeña con el mismo comando quitando `--plan-only`.
+
+`--warm-start` espera una carpeta de artefacto de actor de RoyaleImitate, no una ruta a un checkpoint PPO arbitrario. La compatibilidad del artefacto debe ser verificada por RoyaleImitate/RoyaleLearn. Tras entrenar, AXR intenta exportar `runs/.../axr_actor` como artefacto reutilizable; si RoyaleImitate no está instalado, conserva el checkpoint PPO normal y registra que no exportó el actor.
+
+Esto es una ruta de integración de código, no evidencia de que el entrenamiento ya haya funcionado: no se ha ejecutado en la PC del usuario ni validado con el motor Rust.

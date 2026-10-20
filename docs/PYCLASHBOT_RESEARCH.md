@@ -8,13 +8,19 @@ Fecha de revisión: 2026-10-20.
 - [py-clash-bot pyproject.toml](https://github.com/pyclashbot/py-clash-bot/blob/master/pyproject.toml)
 - [Licencia del código y assets](https://github.com/pyclashbot/py-clash-bot/blob/master/LICENSE)
 - [pymemuc](https://github.com/pyclashbot/pymemuc)
-- [RoyaleGym](https://github.com/RoyaleGym/RoyaleGym)
+- [BlueStacks controller](https://github.com/pyclashbot/py-clash-bot/blob/master/pyclashbot/emulators/bluestacks.py)
+- [MEmu controller](https://github.com/pyclashbot/py-clash-bot/blob/master/pyclashbot/emulators/memu.py)
+- [UI configuration](https://github.com/pyclashbot/py-clash-bot/blob/master/pyclashbot/interface/config.py)
+- [Battle loop](https://github.com/pyclashbot/py-clash-bot/blob/master/pyclashbot/bot/fight.py)
+- [State detection](https://github.com/pyclashbot/py-clash-bot/blob/master/pyclashbot/bot/state_detect.py)
+- [RoyaleGym](https://github.com/RoyaleGym/RoyaleGym), including `env.py`, `action.py`, `state_mutator.py` and `selfplay.py`
+- [RoyaleLearn](https://github.com/RoyaleGym/RoyaleLearn), including `learner.py` and `pyproject.toml`
 
 ## Cómo funciona py-clash-bot, a alto nivel
 
 El README describe una aplicación de escritorio para Windows/macOS con pestañas de emulador y trabajos. Sus dependencias declaradas incluyen OpenCV, NumPy, pymemuc, psutil, Pillow, pypresence y ttkbootstrap. La arquitectura pública anuncia reconocimiento de imágenes, gestión del emulador Android y tareas configurables. El flujo documentado es seleccionar un emulador, iniciar o crear una instancia, preparar manualmente el juego y seleccionar trabajos.
 
-Esto es una lectura de README y metadatos del paquete; no significa que se haya inspeccionado exhaustivamente cada módulo interno ni que AXR haya incorporado esos módulos.
+Se revisaron los archivos fuente enumerados arriba, pero esto no es una auditoría línea por línea de todos los módulos upstream ni significa que AXR haya incorporado esos módulos.
 
 ## Hallazgo de licencia
 
@@ -43,3 +49,10 @@ La prioridad de AXR es la investigación offline: simulación RoyaleGym/RoyaleSi
 - Verificar rutas personalizadas y múltiples instancias.
 - Confirmar versiones reales de RoyaleGym/RoyaleLearn y sus APIs antes de entrenar.
 - Ejecutar CI y corregir cualquier fallo.
+
+
+## Revisión ampliada del simulador y entrenador
+
+La investigación posterior inspeccionó archivos fuente de RoyaleGym y RoyaleLearn, y dio lugar a un comprobador independiente en AXR: `src/royalegym_contract.py`. Este script utiliza `MockEngine` para probar de forma breve el contrato `reset/step`, las máscaras de acciones y las recompensas. No requiere el motor Rust para esa prueba, y no se ha ejecutado todavía en el entorno del usuario.
+
+Detalle de los hallazgos y próximos pasos: [Matriz de extracción técnica](EXTRACTION_MATRIX.md).

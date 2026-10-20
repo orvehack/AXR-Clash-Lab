@@ -432,3 +432,214 @@ def suggest_labeling_priority(rows: Iterable[dict[str, str]], limit: int = 25) -
             priorities.append((score, index, {"row": index, "priority": score, "reasons": reasons, "match_id": row.get("match_id", "")}))
     priorities.sort(key=lambda item: (-item[0], item[1]))
     return [item[2] for item in priorities[:limit]]
+
+
+def stratified_split_by_label(
+    rows: Iterable[dict[str, str]],
+    train_fraction: float = 0.70,
+    validation_fraction: float = 0.15,
+    seed: int = 7,
+) -> tuple[list[dict[str, str]], list[dict[str, str]], list[dict[str, str]]]:
+    """Split within each decision class to preserve rare labels approximately.
+
+    Unlike grouped_split, this can place decisions from one match into different
+    partitions. Prefer grouped_split when avoiding match-level leakage matters.
+    """
+    if train_fraction <= 0 or validation_fraction <= 0 or train_fraction + validation_fraction >= 1:
+        raise ValueError("Las fracciones deben ser positivas y sumar menos de uno.")
+    rng = random.Random(seed)
+    groups: dict[str, list[dict[str, str]]] = defaultdict(list)
+    for row in rows:
+        groups[(row.get("decision_label") or "").strip() or "(sin etiqueta)"].append(dict(row))
+    train: list[dict[str, str]] = []
+    validation: list[dict[str, str]] = []
+    test: list[dict[str, str]] = []
+    for label in sorted(groups):
+        group = groups[label]
+        rng.shuffle(group)
+        train_end = int(len(group) * train_fraction)
+        val_end = train_end + int(len(group) * validation_fraction)
+        train.extend(group[:train_end])
+        validation.extend(group[train_end:val_end])
+        test.extend(group[val_end:])
+    rng.shuffle(train)
+    rng.shuffle(validation)
+    rng.shuffle(test)
+    return train, validation, test
+
+
+def audit_split_leakage(
+    train_rows: Iterable[dict[str, str]],
+    validation_rows: Iterable[dict[str, str]],
+    test_rows: Iterable[dict[str, str]],
+) -> dict[str, Any]:
+    """Detect overlapping match IDs and exact row fingerprints across partitions."""
+    partitions = {
+        "train": [dict(row) for row in train_rows],
+        "validation": [dict(row) for row in validation_rows],
+        "test": [dict(row) for row in test_rows],
+    }
+    match_sets = {
+        name: {row.get("match_id", "").strip() for row in rows if row.get("match_id", "").strip()}
+        for name, rows in partitions.items()
+    }
+    fingerprint_sets = {
+        name: {stable_row_fingerprint(row) for row in rows}
+        for name, rows in partitions.items()
+    }
+    overlaps: dict[str, Any] = {}
+    names = list(partitions)
+    for index, first in enumerate(names):
+        for second in names[index + 1:]:
+            overlaps[f"{first}_{second}"] = {
+                "match_ids": sorted(match_sets[first] & match_sets[second]),
+                "duplicate_rows": sorted(fingerprint_sets[first] & fingerprint_sets[second]),
+            }
+    has_leakage = any(
+        item["match_ids"] or item["duplicate_rows"] for item in overlaps.values()
+    )
+    return {
+        "partition_sizes": {name: len(rows) for name, rows in partitions.items()},
+        "overlaps": overlaps,
+        "potential_leakage": has_leakage,
+        "recommendation": (
+            "Rebuild splits grouped by match_id." if has_leakage else
+            "No overlap detected by match_id or exact-row hash; semantic leakage still needs review."
+        ),
+    }
+
+
+def merge_datasets(paths: Iterable[Path], output: Path, deduplicate: bool = True) -> dict[str, Any]:
+    """Merge canonical CSV datasets, optionally removing exact duplicate rows."""
+    merged: list[dict[str, str]] = []
+    seen: set[str] = set()
+    source_counts: dict[str, int] = {}
+    duplicate_count = 0
+    for path in paths:
+        rows = read_raw_rows(path)
+        source_counts[str(path)] = len(rows)
+        for row in rows:
+            fingerprint = stable_row_fingerprint(row)
+            if deduplicate and fingerprint in seen:
+                duplicate_count += 1
+                continue
+            seen.add(fingerprint)
+            merged.append(row)
+    written = write_rows(output, merged)
+    return {
+        "output": str(output),
+        "source_counts": source_counts,
+        "rows_written": written,
+        "duplicates_removed": duplicate_count,
+        "deduplicated": deduplicate,
+        "dataset_card": dataset_card(merged, str(output)),
+    }
+
+
+def filter_rows(
+    rows: Iterable[dict[str, str]],
+    phase: str | None = None,
+    decision: str | None = None,
+    outcome: str | None = None,
+    match_id: str | None = None,
+    require_label: bool = False,
+) -> list[dict[str, str]]:
+    """Select examples by label and metadata without modifying their contents."""
+    selected: list[dict[str, str]] = []
+    for row in rows:
+        if phase and (row.get("phase") or "").strip().casefold() != phase.casefold():
+            continue
+        if decision and (row.get("decision_label") or "").strip().casefold() != decision.casefold():
+            continue
+        if outcome and (row.get("outcome_label") or "").strip().casefold() != outcome.casefold():
+            continue
+        if match_id and (row.get("match_id") or "").strip() != match_id:
+            continue
+        if require_label and not (row.get("decision_label") or "").strip():
+            continue
+        selected.append(dict(row))
+    return selected
+
+
+def normalize_label_whitespace(rows: Iterable[dict[str, str]]) -> tuple[list[dict[str, str]], int]:
+    """Trim surrounding whitespace only; never merge semantically distinct labels."""
+    cleaned: list[dict[str, str]] = []
+    changed = 0
+    for row in rows:
+        item = {key: (value.strip() if isinstance(value, str) else value) for key, value in row.items()}
+        if item != row:
+            changed += 1
+        cleaned.append(item)
+    return cleaned, changed
+
+
+def report_to_markdown(report: DatasetReport) -> str:
+    """Render a compact review report that can be attached to a research run."""
+    lines = [
+        "# AXR decision dataset audit",
+        "",
+        f"- Source: `{report.path}`",
+        f"- Rows: {report.rows}",
+        f"- Valid rows: {report.valid_rows}",
+        f"- Invalid rows: {report.invalid_rows}",
+        f"- Unique matches: {report.unique_matches}",
+        "",
+        "## Decision labels",
+        "",
+    ]
+    if report.decision_counts:
+        lines.extend(f"- {label}: {count}" for label, count in report.decision_counts.items())
+    else:
+        lines.append("- No decision labels found.")
+    lines.extend(["", "## Phases", ""])
+    lines.extend(f"- {phase}: {count}" for phase, count in report.phase_counts.items())
+    lines.extend(["", "## Issues", ""])
+    if report.issues:
+        lines.extend(f"- {issue}" for issue in report.issues)
+    else:
+        lines.append("- No structural issues found by this validator.")
+    lines.extend([
+        "",
+        "> This report checks structure and simple value ranges. It does not prove that",
+        "> the human labels are strategically correct or that a model will perform well.",
+    ])
+    return "\\n".join(lines)
+
+
+def save_audit_bundle(path: Path, output_dir: Path) -> dict[str, str]:
+    """Save JSON and Markdown audits together for reproducible review."""
+    rows = read_raw_rows(path)
+    report = validate_rows(rows, str(path))
+    card = dataset_card(rows, str(path))
+    output_dir.mkdir(parents=True, exist_ok=True)
+    json_path = output_dir / "dataset_audit.json"
+    markdown_path = output_dir / "dataset_audit.md"
+    json_path.write_text(json.dumps({
+        "validation": report.to_dict(),
+        "dataset_card": card,
+        "leakage_note": "Use grouped splits and audit train/validation/test overlap.",
+    }, indent=2, ensure_ascii=False) + "\\n", encoding="utf-8")
+    markdown_path.write_text(report_to_markdown(report) + "\\n", encoding="utf-8")
+    return {"json": str(json_path), "markdown": str(markdown_path)}
+
+
+def export_filtered_dataset(
+    source: Path,
+    output: Path,
+    phase: str | None = None,
+    decision: str | None = None,
+    outcome: str | None = None,
+    require_label: bool = True,
+) -> dict[str, Any]:
+    """Create a filtered canonical dataset and return its quality card."""
+    rows = read_raw_rows(source)
+    selected = filter_rows(rows, phase=phase, decision=decision, outcome=outcome, require_label=require_label)
+    count = write_rows(output, selected)
+    return {
+        "source": str(source),
+        "output": str(output),
+        "source_rows": len(rows),
+        "output_rows": count,
+        "filters": {"phase": phase, "decision": decision, "outcome": outcome, "require_label": require_label},
+        "dataset_card": dataset_card(selected, str(output)),
+    }

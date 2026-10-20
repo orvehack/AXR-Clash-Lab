@@ -201,3 +201,288 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+# ---------------------------------------------------------------------------
+# Experiment bookkeeping and configuration helpers
+# --------------------------------------------------------------------------------------
+
+import hashlib
+import platform
+import random
+import shutil
+import subprocess
+from datetime import datetime, timezone
+from typing import Mapping
+
+
+SUPPORTED_OPPONENTS = {"random", "noop", "self"}
+SUPPORTED_DEVICES = {"auto", "cpu", "cuda"}
+
+
+@dataclass(frozen=True)
+class ResourceEstimate:
+    """Transparent rough estimate; it is not a performance guarantee."""
+
+    total_steps: int
+    env_count: int
+    rollout_steps_per_env: int
+    approximate_samples_per_update: int
+    estimated_updates: int
+    checkpoint_count: int
+
+
+def estimate_training_resources(plan: TrainingPlan) -> ResourceEstimate:
+    """Estimate update/checkpoint counts from the current configuration."""
+    if plan.steps_per_update <= 0:
+        raise ValueError("steps_per_update debe ser positivo")
+    if plan.n_envs <= 0:
+        raise ValueError("n_envs debe ser positivo")
+    samples = plan.steps_per_update * plan.n_envs
+    updates = (plan.total_steps + plan.steps_per_update - 1) // plan.steps_per_update
+    checkpoints = (
+        (plan.total_steps + plan.checkpoint_every - 1) // plan.checkpoint_every
+        if plan.checkpoint_every > 0 else 0
+    )
+    return ResourceEstimate(
+        total_steps=plan.total_steps,
+        env_count=plan.n_envs,
+        rollout_steps_per_env=plan.steps_per_update,
+        approximate_samples_per_update=samples,
+        estimated_updates=updates,
+        checkpoint_count=checkpoints,
+    )
+
+
+def validate_training_plan(plan: TrainingPlan) -> list[str]:
+    """Return warnings that deserve review before launching a long experiment."""
+    warnings: list[str] = []
+    if plan.total_steps < 10_000:
+        warnings.append("La corrida es muy corta para evaluar aprendizaje; úsala como prueba técnica.")
+    if plan.total_steps > 10_000_000:
+        warnings.append("Corrida grande: estima tiempo y espacio en disco antes de empezar.")
+    if plan.n_envs > 16:
+        warnings.append("Muchos entornos paralelos pueden consumir bastante memoria.")
+    if plan.ppo_batch_size % plan.ppo_minibatch_size:
+        warnings.append("ppo_batch_size no es múltiplo de ppo_minibatch_size.")
+    if plan.checkpoint_every < 1:
+        warnings.append("No se guardarán checkpoints periódicos.")
+    if plan.policy_lr > 0.001 or plan.critic_lr > 0.001:
+        warnings.append("Tasa de aprendizaje alta; considera comparar con una tasa menor.")
+    if plan.trunk_channels < 16:
+        warnings.append("Red pequeña: puede ser insuficiente para observaciones complejas.")
+    if plan.trunk_channels > 256:
+        warnings.append("Red grande: puede incrementar mucho el consumo de memoria.")
+    if plan.device == "cuda":
+        warnings.append("Se solicitó CUDA; verifica que PyTorch y el controlador lo soporten.")
+    warnings.append("La configuración no demuestra que el modelo vaya a aprender una estrategia ganadora.")
+    return warnings
+
+
+def experiment_fingerprint(plan: TrainingPlan) -> str:
+    """Stable SHA-256 identifier for comparing configuration-equivalent runs."""
+    encoded = json.dumps(asdict(plan), sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def environment_diagnostics() -> dict[str, Any]:
+    """Collect non-sensitive Python/platform diagnostics without network access."""
+    return {
+        "python_version": sys.version,
+        "implementation": platform.python_implementation(),
+        "platform": platform.platform(),
+        "machine": platform.machine(),
+        "processor": platform.processor(),
+        "cpu_count": os.cpu_count() if "os" in globals() else None,
+        "cwd": str(Path.cwd()),
+        "timestamp_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    }
+
+
+def _git_revision() -> str | None:
+    """Return the local revision if Git is installed and this folder is a repository."""
+    if shutil.which("git") is None:
+        return None
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            check=True, capture_output=True, text=True, timeout=3,
+        )
+        return result.stdout.strip() or None
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def write_run_manifest(plan: TrainingPlan, directory: Path) -> Path:
+    """Replace the base manifest writer with richer reproducibility metadata."""
+    directory.mkdir(parents=True, exist_ok=True)
+    manifest = {
+        "project": "AXR Clash Lab",
+        "purpose": "offline simulator training",
+        "status": "planned",
+        "created_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "training_plan": asdict(plan),
+        "experiment_fingerprint": experiment_fingerprint(plan),
+        "resource_estimate": asdict(estimate_training_resources(plan)),
+        "environment": environment_diagnostics(),
+        "git_revision": _git_revision(),
+        "warnings": validate_training_plan(plan),
+        "important": [
+            "This manifest records configuration, not proof that training completed.",
+            "No official game client, emulator, ADB, or live match is controlled.",
+            "Evaluation on held-out seeds is required before comparing policies.",
+        ],
+    }
+    target = directory / "axr_run_manifest.json"
+    temporary = target.with_suffix(".json.tmp")
+    temporary.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\\n", encoding="utf-8")
+    temporary.replace(target)
+    return target
+
+
+def append_jsonl_event(path: Path, event: Mapping[str, Any]) -> None:
+    """Append one structured local event for later progress visualization."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    record = {
+        "timestamp_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        **dict(event),
+    }
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\\n")
+
+
+def read_jsonl_events(path: Path) -> list[dict[str, Any]]:
+    """Read progress events while reporting the exact malformed line."""
+    if not path.exists():
+        return []
+    events: list[dict[str, Any]] = []
+    with path.open("r", encoding="utf-8") as handle:
+        for line_number, line in enumerate(handle, start=1):
+            if not line.strip():
+                continue
+            try:
+                value = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"JSONL inválido en línea {line_number}: {exc}") from exc
+            if not isinstance(value, dict):
+                raise ValueError(f"La línea {line_number} no contiene un objeto JSON.")
+            events.append(value)
+    return events
+
+
+def summarize_progress_events(events: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    """Summarize step/loss/reward events emitted by future training callbacks."""
+    step_values: list[int] = []
+    rewards: list[float] = []
+    losses: list[float] = []
+    for event in events:
+        if "step" in event:
+            try:
+                step_values.append(int(event["step"]))
+            except (TypeError, ValueError):
+                pass
+        for key, bucket in (("reward", rewards), ("loss", losses)):
+            if key in event:
+                try:
+                    value = float(event[key])
+                    if value == value and abs(value) != float("inf"):
+                        bucket.append(value)
+                except (TypeError, ValueError):
+                    pass
+    return {
+        "event_count": len(events),
+        "first_step": min(step_values) if step_values else None,
+        "last_step": max(step_values) if step_values else None,
+        "reward_samples": len(rewards),
+        "mean_reward": sum(rewards) / len(rewards) if rewards else None,
+        "last_reward": rewards[-1] if rewards else None,
+        "loss_samples": len(losses),
+        "mean_loss": sum(losses) / len(losses) if losses else None,
+        "last_loss": losses[-1] if losses else None,
+    }
+
+
+def write_experiment_card(plan: TrainingPlan, directory: Path) -> Path:
+    """Write a Markdown experiment card for reviewing a run in GitHub."""
+    directory.mkdir(parents=True, exist_ok=True)
+    resources = estimate_training_resources(plan)
+    warnings = validate_training_plan(plan)
+    lines = [
+        "# AXR experiment card",
+        "",
+        f"- Created: {datetime.now(timezone.utc).isoformat(timespec='seconds')}",
+        f"- Fingerprint: `{experiment_fingerprint(plan)}`",
+        f"- Requested steps: {plan.total_steps:,}",
+        f"- Parallel environments: {plan.n_envs}",
+        f"- Opponent: {plan.opponent}",
+        f"- Device: {plan.device}",
+        f"- Seed: {plan.seed}",
+        "",
+        "## Approximate workload",
+        "",
+        f"- Samples per update: {resources.approximate_samples_per_update:,}",
+        f"- Estimated updates: {resources.estimated_updates:,}",
+        f"- Checkpoints expected: {resources.checkpoint_count:,}",
+        "",
+        "## Review warnings",
+        "",
+    ]
+    lines.extend(f"- {warning}" for warning in warnings)
+    lines.extend([
+        "",
+        "## Evaluation checklist",
+        "",
+        "- [ ] Record package versions and code revision.",
+        "- [ ] Run the same held-out seeds against the random baseline.",
+        "- [ ] Report win rate with sample size, not just a single result.",
+        "- [ ] Compare reward and crown metrics as well as win rate.",
+        "- [ ] Confirm the final model checkpoint exists and can be loaded.",
+        "- [ ] Preserve the manifest and raw evaluation JSON.",
+    ])
+    target = directory / "EXPERIMENT_CARD.md"
+    target.write_text("\\n".join(lines) + "\\n", encoding="utf-8")
+    return target
+
+
+def seed_everything(seed: int) -> dict[str, Any]:
+    """Seed Python and optional NumPy/PyTorch without requiring them for plan mode."""
+    if seed < 0:
+        raise ValueError("seed no puede ser negativo")
+    random.seed(seed)
+    seeded = {"python_random": True, "seed": seed, "numpy": False, "torch": False}
+    try:
+        import numpy as np
+        np.random.seed(seed)
+        seeded["numpy"] = True
+    except ImportError:
+        pass
+    try:
+        import torch
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed)
+        seeded["torch"] = True
+    except ImportError:
+        pass
+    return seeded
+
+
+def verify_output_directory(path: Path, minimum_free_mb: int = 512) -> dict[str, Any]:
+    """Check writability and available disk space before a long local run."""
+    path.mkdir(parents=True, exist_ok=True)
+    probe = path / ".axr_write_test"
+    try:
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink()
+    except OSError as exc:
+        raise OSError(f"No se puede escribir en {path}: {exc}") from exc
+    usage = shutil.disk_usage(path)
+    free_mb = usage.free / (1024 * 1024)
+    return {
+        "path": str(path.resolve()),
+        "writable": True,
+        "free_bytes": usage.free,
+        "free_mb": round(free_mb, 1),
+        "minimum_free_mb": minimum_free_mb,
+        "enough_space": free_mb >= minimum_free_mb,
+    }

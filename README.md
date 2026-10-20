@@ -79,3 +79,12 @@ La presencia de un módulo de entrenamiento no significa que ya exista un modelo
 La licencia de py-clash-bot es **NC-CL-1.0** para el código y CC BY-NC-SA 4.0 para assets/documentación; por ello este repositorio no copia sus archivos fuente ni sus recursos gráficos. Se revisarán las licencias individuales antes de cualquier reutilización de código.
 
 AXR se centra en investigación, análisis offline y simulación. No implementa evasión de antitrampas ni automatización de partidas competitivas en el cliente oficial. No está afiliado, respaldado ni patrocinado por Supercell.
+
+
+## Auditoría de código y modelos cooperativos
+
+- [Auditoría profunda y stack de IA](docs/DEEP_CODE_AUDIT_AND_AI_STACK.md): revisión de módulos actuales, riesgos de integración y arquitectura recomendada.
+- [RoyaleImitate](https://github.com/RoyaleGym/RoyaleImitate): opción para aprender de demostraciones y crear un actor inicial que luego se afina con PPO.
+- [RoyaleViser](https://github.com/RoyaleGym/RoyaleViser): visor de partidas simuladas, no un modelo de IA.
+
+El flujo cooperativo previsto es: dataset auditado → imitación → warm-start PPO → self-play/evaluación → promoción sólo si mejora al baseline. La integración de warm-start ya está disponible en `src/train_agent.py` mediante `--warm-start <carpeta-de-actor>`. Requiere un artefacto compatible creado por RoyaleImitate. Aún no se ha ejecutado el entrenamiento en Windows.

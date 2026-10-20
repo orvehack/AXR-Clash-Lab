@@ -308,3 +308,312 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+# ---------------------------------------------------------------------------
+# Extended evaluation and experiment-reporting utilities
+# ---------------------------------------------------------------------------
+
+import csv
+import hashlib
+from datetime import datetime, timezone
+from itertools import combinations
+
+
+@dataclass(frozen=True)
+class ConfidenceInterval:
+    """Normal-approximation interval with an explicit sample-size warning."""
+
+    estimate: float
+    lower: float
+    upper: float
+    confidence: float
+    sample_size: int
+    method: str = "Wilson score interval"
+
+
+def win_rate_interval(wins: int, games: int, confidence_z: float = 1.96) -> ConfidenceInterval | None:
+    """Compute a Wilson interval for a binomial win rate in percentage points."""
+    if games < 0 or wins < 0 or wins > games:
+        raise ValueError("Se requiere 0 <= wins <= games")
+    if games == 0:
+        return None
+    p = wins / games
+    z = confidence_z
+    denominator = 1 + z * z / games
+    center = (p + z * z / (2 * games)) / denominator
+    margin = z * ((p * (1 - p) / games + z * z / (4 * games * games)) ** 0.5) / denominator
+    return ConfidenceInterval(
+        estimate=100 * p,
+        lower=max(0.0, 100 * (center - margin)),
+        upper=min(100.0, 100 * (center + margin)),
+        confidence=0.95 if abs(z - 1.96) < 0.001 else 0.0,
+        sample_size=games,
+    )
+
+
+def results_by_seed(results: Sequence[BattleResult]) -> dict[int, BattleResult]:
+    """Index results by seed and reject duplicates that could hide bad bookkeeping."""
+    indexed: dict[int, BattleResult] = {}
+    for result in results:
+        if result.seed in indexed:
+            raise ValueError(f"Semilla duplicada en resultados: {result.seed}")
+        indexed[result.seed] = result
+    return indexed
+
+
+def compare_evaluations(
+    first: EvaluationSummary,
+    second: EvaluationSummary,
+) -> dict[str, Any]:
+    """Compare two policies with a shared-seed paired report when possible."""
+    first_by_seed = results_by_seed(first.results)
+    second_by_seed = results_by_seed(second.results)
+    shared = sorted(set(first_by_seed) & set(second_by_seed))
+    first_wins = sum(first_by_seed[seed].winner == "blue" for seed in shared)
+    second_wins = sum(second_by_seed[seed].winner == "blue" for seed in shared)
+    first_rewards = [first_by_seed[seed].blue_reward for seed in shared]
+    second_rewards = [second_by_seed[seed].blue_reward for seed in shared]
+    paired_reward_deltas = [
+        second_by_seed[seed].blue_reward - first_by_seed[seed].blue_reward for seed in shared
+    ]
+    return {
+        "first_agent": first.agent,
+        "second_agent": second.agent,
+        "shared_seeds": shared,
+        "shared_seed_count": len(shared),
+        "first_shared_wins": first_wins,
+        "second_shared_wins": second_wins,
+        "first_shared_win_rate": 100 * first_wins / len(shared) if shared else None,
+        "second_shared_win_rate": 100 * second_wins / len(shared) if shared else None,
+        "paired_mean_reward_delta": statistics.fmean(paired_reward_deltas) if paired_reward_deltas else None,
+        "paired_reward_deltas": paired_reward_deltas,
+        "warning": "A small number of seeds gives noisy comparisons; rerun with a larger fixed seed set.",
+    }
+
+
+def bootstrap_mean_interval(
+    values: Sequence[float],
+    repetitions: int = 2000,
+    confidence: float = 0.95,
+    seed: int = 7,
+) -> tuple[float, float] | None:
+    """Bootstrap a mean interval without adding a NumPy dependency."""
+    if repetitions < 100:
+        raise ValueError("repetitions debe ser al menos 100")
+    if not 0 < confidence < 1:
+        raise ValueError("confidence debe estar entre 0 y 1")
+    if not values:
+        return None
+    rng = random.Random(seed)
+    means = sorted(
+        statistics.fmean(rng.choice(values) for _ in range(len(values)))
+        for _ in range(repetitions)
+    )
+    lower = int(((1 - confidence) / 2) * repetitions)
+    upper = min(repetitions - 1, int((1 - (1 - confidence) / 2) * repetitions) - 1)
+    return means[lower], means[upper]
+
+
+def summarize_result_quality(results: Sequence[BattleResult]) -> dict[str, Any]:
+    """Flag incomplete episodes and suspiciously uniform or missing metrics."""
+    warnings: list[str] = []
+    if not results:
+        return {"warnings": ["No hay resultados para evaluar."], "episodes": 0}
+    limits = sum(result.winner == "limit" for result in results)
+    missing_crowns = sum(result.blue_crowns is None or result.red_crowns is None for result in results)
+    if limits:
+        warnings.append(f"{limits} episodios alcanzaron max_decisions sin ganador.")
+    if missing_crowns:
+        warnings.append(f"{missing_crowns} episodios no reportaron coronas para ambos asientos.")
+    if len({result.seed for result in results}) != len(results):
+        warnings.append("Hay semillas repetidas; revisa la reproducibilidad del registro.")
+    if all(result.decisions == 1 for result in results):
+        warnings.append("Todos los episodios terminaron en una decisión; revisa el contrato del entorno.")
+    if len(results) < 30:
+        warnings.append("Muestra pequeña: no interpretes una tasa alta como evidencia suficiente.")
+    return {
+        "episodes": len(results),
+        "unique_seeds": len({result.seed for result in results}),
+        "limit_episodes": limits,
+        "missing_crown_records": missing_crowns,
+        "warnings": warnings,
+    }
+
+
+def evaluation_report(summary: EvaluationSummary) -> dict[str, Any]:
+    """Build a report bundle with uncertainty and data-quality checks."""
+    payload = summary.to_dict()
+    interval = win_rate_interval(summary.wins, summary.episodes)
+    payload["win_rate_interval"] = asdict(interval) if interval else None
+    payload["quality"] = summarize_result_quality(summary.results)
+    payload["generated_at_utc"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    payload["interpretation"] = [
+        "This is an offline simulator result, not live-game performance.",
+        "A baseline's win rate depends on the environment, action parser, reward, and opponent.",
+        "Compare agents on the same fixed seeds and report the sample size.",
+    ]
+    return payload
+
+
+def export_results_csv(results: Iterable[BattleResult], path: Path) -> int:
+    """Export per-episode metrics to CSV for spreadsheet review."""
+    materialized = list(results)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(
+            handle,
+            fieldnames=(
+                "seed", "winner", "blue_reward", "red_reward", "blue_crowns",
+                "red_crowns", "decisions", "duration_seconds",
+            ),
+        )
+        writer.writeheader()
+        for result in materialized:
+            writer.writerow(asdict(result))
+    return len(materialized)
+
+
+def save_evaluation_bundle(summary: EvaluationSummary, output_dir: Path) -> dict[str, str]:
+    """Persist machine-readable summary, per-episode CSV, and a readable report."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    json_path = output_dir / "evaluation.json"
+    csv_path = output_dir / "episodes.csv"
+    markdown_path = output_dir / "EVALUATION.md"
+    payload = evaluation_report(summary)
+    json_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\\n", encoding="utf-8")
+    export_results_csv(summary.results, csv_path)
+    interval = payload.get("win_rate_interval")
+    interval_text = (
+        f"{interval['lower']:.1f}%–{interval['upper']:.1f}%" if interval else "N/D"
+    )
+    lines = [
+        "# AXR offline evaluation",
+        "",
+        f"- Agent: {summary.agent}",
+        f"- Opponent: {summary.opponent}",
+        f"- Episodes: {summary.episodes}",
+        f"- Wins/losses/draws: {summary.wins}/{summary.losses}/{summary.draws}",
+        f"- Win rate: {summary.win_rate:.1f}%",
+        f"- Wilson interval (95%): {interval_text}",
+        f"- Mean blue crowns: {summary.mean_blue_crowns:.3f}",
+        f"- Mean red crowns: {summary.mean_red_crowns:.3f}",
+        f"- Mean decisions: {summary.mean_decisions:.1f}",
+        f"- Mean episode duration: {summary.mean_duration_seconds:.3f}s",
+        "",
+        "## Quality checks",
+        "",
+    ]
+    quality = payload["quality"]
+    lines.extend(f"- {warning}" for warning in quality["warnings"] or ["No automatic warnings."])
+    lines.extend([
+        "",
+        "## Interpretation limits",
+        "",
+        "- Results only describe the simulator and the tested seeds.",
+        "- A high score against a random agent is not proof of competitive strength.",
+        "- Compare against multiple baselines and keep held-out seeds.",
+    ])
+    markdown_path.write_text("\\n".join(lines) + "\\n", encoding="utf-8")
+    return {"json": str(json_path), "csv": str(csv_path), "markdown": str(markdown_path)}
+
+
+def read_evaluation_json(path: Path) -> dict[str, Any]:
+    """Read an evaluation report and validate its minimum structure."""
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("El informe JSON debe ser un objeto.")
+    required = {"agent", "opponent", "episodes", "wins", "losses", "draws", "win_rate"}
+    missing = required - payload.keys()
+    if missing:
+        raise ValueError("Faltan campos en el informe: " + ", ".join(sorted(missing)))
+    if int(payload["episodes"]) < 0:
+        raise ValueError("episodes no puede ser negativo.")
+    return payload
+
+
+def compare_report_files(paths: Sequence[Path]) -> dict[str, Any]:
+    """Compare saved evaluation JSONs for experiment tracking."""
+    reports = [read_evaluation_json(path) for path in paths]
+    ranked = sorted(
+        reports,
+        key=lambda report: (
+            float(report.get("win_rate", 0)),
+            float(report.get("mean_blue_crowns", 0)),
+            -float(report.get("mean_duration_seconds", 0)),
+        ),
+        reverse=True,
+    )
+    return {
+        "reports": [
+            {
+                "agent": report["agent"],
+                "opponent": report["opponent"],
+                "episodes": report["episodes"],
+                "win_rate": report["win_rate"],
+                "mean_blue_crowns": report.get("mean_blue_crowns"),
+                "mean_duration_seconds": report.get("mean_duration_seconds"),
+            }
+            for report in ranked
+        ],
+        "ranking_note": "Ranking descriptivo; compare seed sets and confidence intervals before conclusions.",
+    }
+
+
+def result_fingerprint(summary: EvaluationSummary) -> str:
+    """Hash normalized per-episode results to detect changes in saved experiments."""
+    normalized = [
+        {
+            "seed": item.seed,
+            "winner": item.winner,
+            "blue_reward": round(item.blue_reward, 8),
+            "red_reward": round(item.red_reward, 8),
+            "blue_crowns": item.blue_crowns,
+            "red_crowns": item.red_crowns,
+            "decisions": item.decisions,
+        }
+        for item in sorted(summary.results, key=lambda item: item.seed)
+    ]
+    encoded = json.dumps(normalized, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def pairwise_agent_pairs(names: Sequence[str]) -> list[tuple[str, str]]:
+    """Generate unique non-self matchup pairs for a future round-robin evaluator."""
+    unique = list(dict.fromkeys(name.strip() for name in names if name.strip()))
+    return list(combinations(unique, 2))
+
+
+def validate_evaluation_arguments(episodes: int, seed: int, max_decisions: int) -> list[str]:
+    """Validate evaluation settings and return warnings before compute begins."""
+    if episodes < 1:
+        raise ValueError("episodes debe ser mayor que cero")
+    if seed < 0:
+        raise ValueError("seed debe ser no negativo")
+    if max_decisions < 1:
+        raise ValueError("max_decisions debe ser mayor que cero")
+    warnings: list[str] = []
+    if episodes < 30:
+        warnings.append("Menos de 30 episodios: la incertidumbre estadística será alta.")
+    if episodes > 5000:
+        warnings.append("Evaluación extensa: considera guardar resultados por lotes.")
+    if max_decisions < 100:
+        warnings.append("Límite de decisiones bajo; muchas partidas podrían quedar truncadas.")
+    return warnings
+
+
+def write_round_robin_manifest(names: Sequence[str], output: Path, episodes: int, seed: int) -> Path:
+    """Plan a reproducible set of pairings without automatically running them."""
+    pairs = pairwise_agent_pairs(names)
+    manifest = {
+        "status": "planned",
+        "agents": list(dict.fromkeys(name.strip() for name in names if name.strip())),
+        "pairings": [{"blue": first, "red": second} for first, second in pairs],
+        "episodes_per_pair": episodes,
+        "seed_start": seed,
+        "created_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "warning": "This is a matchup plan, not evidence that any battle was executed.",
+    }
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\\n", encoding="utf-8")
+    return output

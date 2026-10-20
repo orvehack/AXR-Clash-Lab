@@ -1,6 +1,6 @@
 # Probar RoyaleGym en Windows
 
-Esta es una prueba de integración inicial: comprueba si el paquete se puede importar y qué interfaces ofrece el entorno. No ejecuta acciones (`step`) ni juega en el cliente de Clash Royale.
+Hay dos comprobaciones distintas: `simulator_adapter.py` inspecciona el entorno con un reset sin ejecutar acciones; `royalegym_contract.py` ejecuta unos pocos pasos NOOP contra `MockEngine` para comprobar el contrato de reset/step, las máscaras y las recompensas. Ninguna usa emuladores ni juega en el cliente oficial. `MockEngine` es un motor de referencia en Python, no una simulación fiel del juego real.
 
 ## Requisitos
 
@@ -25,7 +25,7 @@ Si PowerShell bloquea la activación del entorno, se puede ejecutar directamente
 .\.venv\Scripts\python.exe src\simulator_adapter.py
 ```
 
-El script imprime JSON con el tipo de entorno, espacios de observación/acción y forma de la observación. Si no encuentra RoyaleGym, devuelve un diagnóstico. Si falla por incompatibilidad, guarda el error para investigar antes de adaptar una política.
+`simulator_adapter.py` imprime JSON con espacios y forma de la observación. `royalegym_contract.py` comprueba los mappings de ambos asientos, `action_mask`, una acción válida, recompensas finitas y tipos de terminación. Si falla por incompatibilidad, imprime un diagnóstico JSON para investigar antes de adaptar una política.
 
 ## Pruebas locales sin instalar RoyaleGym
 
@@ -33,13 +33,14 @@ El script imprime JSON con el tipo de entorno, espacios de observación/acción 
 py -m unittest discover -s tests -v
 ```
 
-Las pruebas del adaptador usan entornos falsos y no requieren instalar RoyaleGym. La prueba real del simulador sí debe ejecutarse en el PC donde se instalará la dependencia.
+Las pruebas unitarias de los helpers usan objetos falsos y no requieren instalar RoyaleGym. La prueba de contrato requiere el paquete RoyaleGym; por defecto usa `MockEngine`. La prueba con `RustEngine` y el entrenador sigue pendiente y debe ejecutarse en el PC donde se instalen las dependencias.
 
 ## Qué sigue tras obtener el diagnóstico
 
 1. Confirmar que el entorno se crea y se cierra correctamente.
 2. Inspeccionar el formato real de observaciones y acciones documentado por la versión instalada.
-3. Implementar una política de referencia que use solo acciones válidas.
-4. Ejecutar episodios simulados y registrar semillas, recompensas y resultados antes de entrenar un modelo.
+3. Ejecutar `python -m src.royalegym_contract --steps 3` y guardar su JSON como evidencia del entorno instalado.
+4. Implementar una política de referencia que use solo acciones válidas.
+5. Ejecutar episodios simulados con el motor Rust y registrar semillas, recompensas y resultados antes de entrenar un modelo.
 
 No conectes este adaptador a partidas competitivas reales. El objetivo aquí es simulación offline y experimentación reproducible.

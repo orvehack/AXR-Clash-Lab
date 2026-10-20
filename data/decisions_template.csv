@@ -1,0 +1,1 @@
+match_id,timestamp_seconds,phase,event_type,own_elixir,opponent_elixir,own_card,own_lane,opponent_card,decision_label,outcome_label,notes

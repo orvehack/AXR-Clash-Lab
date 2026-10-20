@@ -14,7 +14,7 @@ La aplicación de escritorio de AXR tiene una interfaz propia inspirada en patro
 | `src/match_stats.py` | Métricas de partidas y trofeos desde CSV |
 | `src/analyze_matches.py` | Analizador inicial por CLI |
 | `src/decision_dataset.py` | Validación y auditoría de ejemplos etiquetados |
-| `src/simulator_adapter.py` | Diagnóstico de instalación y espacios de RoyaleGym |
+| `src/simulator_adapter.py` | Diagnóstico de instalación y espacios de RoyaleGym sin ejecutar acciones |\n| `src/royalegym_contract.py` | Prueba corta de contrato `reset/step` con `MockEngine` y acciones legales |
 | `src/royalegym_baseline.py` | Agentes de referencia y evaluación offline |
 | `src/train_agent.py` | Configuración y punto de entrada de entrenamiento |
 | `src/emulator_manager.py` | Detección, diagnóstico y lanzamiento local de MEmu/BlueStacks |
@@ -45,7 +45,7 @@ Si el emulador está instalado en una ruta no estándar, hay que configurar esa 
 ```powershell
 py -m unittest discover -s tests -v
 py -m src.match_stats data/matches.csv
-py -m src.decision_dataset data/decisions_template.csv
+py -m src.decision_dataset data/decisions_template.csv\n# Si RoyaleGym está instalado, comprueba su API Python de forma offline:\npy -m src.royalegym_contract --steps 3
 ```
 
 Los datos incluidos en `data/matches.csv` son **ficticios** y solo sirven para probar la estructura. No representan el historial real del usuario.
@@ -72,7 +72,7 @@ La presencia de un módulo de entrenamiento no significa que ya exista un modelo
 - [Auditoría de integración](docs/INTEGRATION_AUDIT.md)
 - [Hoja de ruta](docs/ROADMAP.md)
 - [Auditoría de py-clash-bot y emuladores](docs/PYCLASHBOT_RESEARCH.md)
-- [Matriz de extracción técnica y pendientes](docs/EXTRACTION_MATRIX.md)
+- [Matriz de extracción técnica y pendientes](docs/EXTRACTION_MATRIX.md)\n- [Prueba de contrato de RoyaleGym](docs/ROYALEGYM_SETUP.md)
 
 ## Licencias y límites
 

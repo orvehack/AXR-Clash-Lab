@@ -15,14 +15,16 @@ py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 python -m pip install "royalegym[all]"
-python src\simulator_adapter.py
+python -m src.simulator_adapter
+python -m src.royalegym_contract --steps 3
 ```
 
 Si PowerShell bloquea la activación del entorno, se puede ejecutar directamente el Python del entorno sin cambiar la política global:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install "royalegym[all]"
-.\.venv\Scripts\python.exe src\simulator_adapter.py
+.\.venv\Scripts\python.exe -m src.simulator_adapter
+.\.venv\Scripts\python.exe -m src.royalegym_contract --steps 3
 ```
 
 `simulator_adapter.py` imprime JSON con espacios y forma de la observación. `royalegym_contract.py` comprueba los mappings de ambos asientos, `action_mask`, una acción válida, recompensas finitas y tipos de terminación. Si falla por incompatibilidad, imprime un diagnóstico JSON para investigar antes de adaptar una política.

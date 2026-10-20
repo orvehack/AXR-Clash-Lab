@@ -418,6 +418,7 @@ class AXRApp(tk.Tk):
             style="Subtitle.TLabel",
         ).pack(anchor="w", pady=(3, 0))
         ttk.Button(header, text="Actualizar datos", command=self.refresh_all).pack(side="right", padx=(8, 0))
+        ttk.Button(header, text="▶ Start emulador", style="Accent.TButton", command=self.start_emulator_dialog).pack(side="right", padx=(8, 0))
         ttk.Button(header, text="Abrir carpeta del proyecto", command=lambda: self._safe_open(ROOT)).pack(side="right")
         separator = ttk.Separator(self, orient="horizontal")
         separator.pack(fill="x", padx=22)
@@ -445,6 +446,46 @@ class AXRApp(tk.Tk):
         footer.pack(fill="x")
         ttk.Label(footer, textvariable=self.status_var, style="Subtitle.TLabel").pack(side="left")
         ttk.Label(footer, text="AXR · sin conexión al cliente oficial", style="Subtitle.TLabel").pack(side="right")
+
+    def start_emulator_dialog(self) -> None:
+        """Offer to launch a locally installed emulator; never controls the game."""
+        from tkinter import messagebox, simpledialog
+
+        choice = simpledialog.askstring(
+            "Iniciar emulador",
+            "Escribe el emulador instalado: memu o bluestacks",
+            parent=self,
+            initialvalue="memu",
+        )
+        if choice is None:
+            return
+        normalized = choice.strip().lower()
+        if normalized not in {"memu", "bluestacks"}:
+            messagebox.showerror(
+                "Emulador no válido",
+                "Opciones disponibles: memu o bluestacks.",
+                parent=self,
+            )
+            return
+        try:
+            from src.emulator_manager import launch_emulator
+            result = launch_emulator(normalized)
+        except (ImportError, OSError, ValueError, FileNotFoundError) as exc:
+            messagebox.showerror("No se pudo iniciar", str(exc), parent=self)
+            self.status_var.set(f"Error al iniciar emulador: {exc}")
+            return
+        if result.started:
+            self.status_var.set(f"{result.emulator} iniciado · PID {result.pid}")
+            messagebox.showinfo(
+                "Emulador iniciado",
+                f"Se inició {result.emulator}.\n\n"
+                "Abre Clash Royale manualmente y comprueba que cargue. "
+                "AXR no pulsa botones ni inicia partidas automáticamente.",
+                parent=self,
+            )
+        else:
+            self.status_var.set(result.message)
+            messagebox.showerror("No se pudo iniciar", result.message, parent=self)
 
     def _build_dashboard(self) -> None:
         ttk.Label(self.dashboard_tab, text="Resumen del laboratorio", style="Title.TLabel").pack(anchor="w")

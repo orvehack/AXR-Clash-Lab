@@ -4,14 +4,14 @@ Fecha de revisión: 2026-10-20. Esta auditoría se basa en lectura de archivos d
 
 ## Hallazgos prioritarios en AXR Clash Lab
 
-### 1. `src/train_agent.py` necesita una limpieza real antes de una corrida larga
-- El archivo contiene dos definiciones de `write_run_manifest`; la segunda reemplaza a la primera cuando se importa el módulo.
-- El bloque `if __name__ == "__main__": raise SystemExit(main())` aparece antes de las funciones auxiliares añadidas después. Al ejecutar el archivo como módulo, el flujo entra en `main()` antes de que esas funciones posteriores se definan. Esto hace que el comportamiento sea distinto entre ejecución directa e importación.
-- Las escrituras JSONL y Markdown usan cadenas con `"\\n"` en el código actual, por lo que pueden escribir los caracteres barra+n en vez de saltos de línea reales.
-- `environment_diagnostics()` consulta `os.cpu_count()` sin importar `os`; la condición actual lo evita indirectamente, pero devuelve `None` aunque se podría obtener el dato.
+### 1. `src/train_agent.py`: problemas encontrados y correcciones aplicadas
+- **Corregido:** se consolidó `write_run_manifest` en una única definición.
+- **Corregido:** el bloque de entrada se movió al final del archivo, después de las funciones auxiliares.
+- **Corregido:** las escrituras de JSON, JSONL y Markdown usan saltos de línea reales.
+- **Corregido:** se añadió la importación de `os` para recopilar `cpu_count`.
 - La rutina de plan/preflight debe distinguir con claridad entre un plan guardado, una prueba técnica y un entrenamiento terminado. Un manifiesto no demuestra que el agente haya aprendido.
 
-**Acción recomendada:** consolidar el archivo en una sola definición por función, mover el punto de entrada al final, corregir los saltos de línea y añadir pruebas unitarias de plan-only, manifiestos y eventos.
+**Pruebas añadidas, aún pendientes de ejecución confirmada:** `tests/test_train_agent.py` cubre argumentos, manifiesto, eventos y tarjeta de experimento. También se añadió soporte opcional de `--warm-start` y exportación del actor mediante RoyaleImitate.
 
 ### 2. Dataset y evaluación
 - `src/decision_dataset.py` ya cubre validación, huellas de filas, duplicados, balance de etiquetas, particiones agrupadas, detección de fuga y exportación de auditoría. Antes de conectarlo a una red neuronal, hay que acordar un esquema de observación/acción que corresponda exactamente al entorno de entrenamiento.
@@ -97,8 +97,8 @@ dataset de demostraciones ──> RoyaleImitate ──> actor inicial
 No recomiendo mezclar directamente probabilidades/logits de redes distintas: pueden usar entradas, escalas y semánticas de acción diferentes. La cooperación inicial debe ser por etapas y con contratos claros: imitación inicializa PPO; la heurística sirve de referencia/respaldo; self-play genera presión de entrenamiento; el evaluador decide qué checkpoint conservar; visión produce datos y no manda acciones directamente.
 
 ## Próximos pasos técnicos
-1. Corregir y probar `src/train_agent.py` antes de lanzar entrenamientos largos.
-2. Añadir un flujo explícito de imitación con RoyaleImitate, artefactos verificados y warm-start opcional.
+1. Probar en CI la limpieza de `src/train_agent.py` antes de lanzar entrenamientos largos.
+2. **Añadido:** `src/imitate_agent.py` prepara shards desde replays y ejecuta `RoyaleImitate.clone`; exporta el actor y un informe. Las pruebas de argumentos están en `tests/test_imitate_agent.py`.
 3. Añadir un evaluador de checkpoints con semillas reservadas y comparación pareada.
 4. Registrar versiones de RoyaleGym/RoyaleLearn/RoyaleImitate/RoyaleSim, configuración del entorno, huella del modelo y métricas.
 5. Conectar la UI a estado/logs de entrenamiento sin bloquearla.

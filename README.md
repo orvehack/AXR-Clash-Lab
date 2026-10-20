@@ -16,6 +16,7 @@ La aplicación de escritorio de AXR tiene una interfaz propia inspirada en patro
 | `src/decision_dataset.py` | Validación y auditoría de ejemplos etiquetados |
 | `src/simulator_adapter.py` | Diagnóstico de instalación y espacios de RoyaleGym sin ejecutar acciones |\n| `src/royalegym_contract.py` | Prueba corta de contrato `reset/step` con `MockEngine` y acciones legales |
 | `src/royalegym_baseline.py` | Agentes de referencia y evaluación offline |
+| `src/imitate_agent.py` | Replay-to-imitation pipeline; creates an actor artifact for PPO warm-start. |
 | `src/train_agent.py` | Configuración y punto de entrada de entrenamiento |
 | `src/emulator_manager.py` | Detección, diagnóstico y lanzamiento local de MEmu/BlueStacks |
 | `data/matches.csv` | Partidas de ejemplo ficticias |
@@ -88,3 +89,21 @@ AXR se centra en investigación, análisis offline y simulación. No implementa 
 - [RoyaleViser](https://github.com/RoyaleGym/RoyaleViser): visor de partidas simuladas, no un modelo de IA.
 
 El flujo cooperativo previsto es: dataset auditado → imitación → warm-start PPO → self-play/evaluación → promoción sólo si mejora al baseline. La integración de warm-start ya está disponible en `src/train_agent.py` mediante `--warm-start <carpeta-de-actor>`. Requiere un artefacto compatible creado por RoyaleImitate. Aún no se ha ejecutado el entrenamiento en Windows.
+
+
+### Imitación → PPO
+
+Primero valida la configuración sin descargar datos ni importar modelos:
+
+```powershell
+python -m src.imitate_agent --plan-only --matches 25 --out-dir runs/axr_imitation_smoke
+```
+
+Después de instalar las dependencias de imitación, prueba con un lote pequeño:
+
+```powershell
+python -m src.imitate_agent --matches 25 --epochs 2 --out-dir runs/axr_imitation_smoke
+python -m src.train_agent --plan-only --steps 10000 --save-dir runs/axr_ppo_smoke --warm-start runs/axr_imitation_smoke/axr_imitation_actor
+```
+
+No es necesario empezar con miles de partidas. Primero hay que confirmar que el motor, los formatos de replay, la validación de demostraciones y la compatibilidad del actor funcionan.

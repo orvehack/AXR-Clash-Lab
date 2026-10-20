@@ -486,3 +486,29 @@ def verify_output_directory(path: Path, minimum_free_mb: int = 512) -> dict[str,
         "minimum_free_mb": minimum_free_mb,
         "enough_space": free_mb >= minimum_free_mb,
     }
+
+
+def write_preflight_report(plan: TrainingPlan, directory: Path) -> Path:
+    """Combine configuration, filesystem, environment, and warning checks."""
+    directory.mkdir(parents=True, exist_ok=True)
+    try:
+        storage = verify_output_directory(directory)
+        storage_error = None
+    except OSError as exc:
+        storage = {}
+        storage_error = str(exc)
+    payload = {
+        "status": "preflight_only",
+        "plan": asdict(plan),
+        "fingerprint": experiment_fingerprint(plan),
+        "resources": asdict(estimate_training_resources(plan)),
+        "warnings": validate_training_plan(plan),
+        "storage": storage,
+        "storage_error": storage_error,
+        "environment": environment_diagnostics(),
+        "git_revision": _git_revision(),
+        "next_step": "Review warnings and install/verify RoyaleGym before training.",
+    }
+    target = directory / "axr_preflight.json"
+    target.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\\n", encoding="utf-8")
+    return target

@@ -55,7 +55,7 @@ Antes de conectar el entrenador hay que confirmar en el entorno instalado:
 | Lanzamiento de emulador | src/emulator_manager.py detecta rutas comunes y lanza el proceso GUI | Configuración persistente, instancias, pruebas en Windows real |
 | Estadísticas | Existe módulo de métricas CSV | Validación de entradas, reportes y pruebas con datos reales anonimizados |
 | Dataset de decisiones | Existe validador/plantilla | Esquema versionado, procedencia, división train/validation/test |
-| Adaptador RoyaleGym | Solo diagnóstico de reset() y espacios | Adaptador completo y pruebas contra versión instalada |
+| Adaptador RoyaleGym | `src/simulator_adapter.py` solo inspecciona reset/espacios; `src/royalegym_contract.py` añade una prueba breve con `MockEngine` y acciones legales | Ejecutar el contrato en el PC, después probar RustEngine y RoyaleLearn |
 | Entrenamiento | Existe punto de entrada/configuración | Confirmar API, ejecutar baseline, guardar checkpoints y curvas |
 | Análisis visual | No debe darse por terminado solo por tener dependencias | Pipeline offline para imágenes/vídeos y conjunto de evaluación etiquetado |
 | Calidad | Hay tests y workflow de CI | Ejecutar CI y resolver fallos; aún no se afirma que todo pase |
@@ -80,3 +80,24 @@ El repositorio py-clash-bot declara licencia de código NC-CL-1.0 y licencia CC 
 - No se ha ejecutado AXR en el PC del usuario ni se han probado las rutas de MEmu/BlueStacks allí.
 - No se afirma que la suite de tests o el entrenamiento ya hayan pasado.
 - Los siguientes commits deben privilegiar contratos comprobables y pruebas, no aumentar líneas artificialmente.
+
+
+## 7. Revisión adicional del código de RoyaleGym
+
+También se inspeccionaron directamente `royalegym/env.py`, `royalegym/action.py`, `royalegym/selfplay.py` y `pyproject.toml` del repositorio upstream.
+
+Hallazgos relevantes para la integración:
+
+- `ClashParallelEnv` es un entorno PettingZoo de dos asientos: `blue` y `red`. Su `reset()` devuelve observaciones e información por asiento; `step()` devuelve cinco mappings: observaciones, recompensas, terminaciones, truncamientos e información.
+- Las observaciones incluyen `action_mask`; la política debe escoger una acción válida. El espacio de acciones básico es `Discrete(2305)`: NOOP más combinaciones de carta/posición. El propio proyecto documenta variantes con acciones de habilidad.
+- `MockEngine` es una implementación de referencia en Python, no debe confundirse con el motor Rust ni con una simulación fiel del cliente real.
+- `RoyaleGym` declara extras separados para simulador Rust, entrenamiento, visualización e imitación. AXR no debe asumir que instalar solo el paquete base instala todos esos componentes.
+- `royalegym_contract.py` se añadió a AXR para validar el contrato básico de la API con `MockEngine`; comprueba las dos plazas, la máscara de acciones, una acción permitida, recompensas finitas y tipos de terminación. La prueba **no se ha ejecutado todavía** y no sustituye las pruebas con RustEngine.
+
+Comando cuando el entorno esté instalado:
+
+```powershell
+py -m src.royalegym_contract --steps 3
+```
+
+Este comando es una prueba offline breve. Si falta RoyaleGym o cambia la API, imprime un diagnóstico JSON; no controla emuladores ni el juego oficial.

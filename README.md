@@ -25,7 +25,7 @@ La aplicación de escritorio de AXR tiene una interfaz propia inspirada en patro
 
 ## Lanzamiento de emuladores
 
-AXR puede detectar e iniciar el programa del emulador; no instala el emulador ni inicia automáticamente sesión o partida.
+AXR tiene un botón **▶ Start emulador** en la cabecera de la interfaz. El botón pregunta si quieres abrir MEmu o BlueStacks 5 y lanza el ejecutable local detectado. También puedes usar la CLI de abajo. No instala el emulador ni inicia sesión o partida.
 
 Desde PowerShell, en la raíz del repositorio:
 

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from dataclasses import asdict, dataclass
@@ -33,6 +34,7 @@ class TrainingPlan:
     policy_lr: float
     critic_lr: float
     checkpoint_every: int
+    warm_start: str | None = None
 
 
 def build_env() -> Any:
@@ -100,25 +102,8 @@ def make_plan(args: argparse.Namespace) -> TrainingPlan:
         policy_lr=args.policy_lr,
         critic_lr=args.critic_lr,
         checkpoint_every=args.checkpoint_every,
+        warm_start=args.warm_start,
     )
-
-
-def write_run_manifest(plan: TrainingPlan, directory: Path) -> Path:
-    directory.mkdir(parents=True, exist_ok=True)
-    manifest = {
-        "project": "AXR Clash Lab",
-        "purpose": "offline simulator training",
-        "status": "planned",
-        "created_unix": time.time(),
-        "training_plan": asdict(plan),
-        "important": [
-            "This manifest records configuration, not proof that training completed.",
-            "No official game client, emulator, ADB, or live match is controlled.",
-        ],
-    }
-    target = directory / "axr_run_manifest.json"
-    target.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    return target
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -138,6 +123,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--policy-lr", type=float, default=2e-4)
     parser.add_argument("--critic-lr", type=float, default=2e-4)
     parser.add_argument("--checkpoint-every", type=int, default=50_000)
+    parser.add_argument("--warm-start", default=None, help="Carpeta de actor RoyaleImitate validado para inicializar PPO")
     parser.add_argument("--plan-only", action="store_true", help="Write config without importing or starting training")
     return parser.parse_args(argv)
 
@@ -153,6 +139,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.plan_only:
             print("Modo plan-only: no se importó RoyaleLearn ni comenzó el entrenamiento.")
             return 0
+
+        extensions: dict[str, Any] = {}
+        if plan.warm_start:
+            from royaleimitate.artifacts import artifact_digest
+
+            warm_start_path = Path(plan.warm_start)
+            if not warm_start_path.is_dir():
+                raise ValueError(f"--warm-start no es una carpeta válida: {warm_start_path}")
+            extensions = {
+                "warm_start": {
+                    "init": {
+                        "path": str(warm_start_path),
+                        "sha256": artifact_digest(warm_start_path),
+                    }
+                }
+            }
 
         from royalelearn import Learner
         learner = Learner(
@@ -173,10 +175,23 @@ def main(argv: Sequence[str] | None = None) -> int:
             seed=plan.seed,
             viser=False,
             log_to_wandb=False,
+            extensions=extensions,
         )
         started = time.perf_counter()
         learner.learn(total_steps=plan.total_steps)
         learner.save(str(target_dir / "axr_bot"))
+        actor_artifact: dict[str, Any]
+        try:
+            from royaleimitate import save_actor
+
+            artifact_path = target_dir / "axr_actor"
+            digest = save_actor(learner, artifact_path, seed=plan.seed)
+            actor_artifact = {"path": str(artifact_path), "sha256": digest}
+        except ImportError:
+            actor_artifact = {
+                "status": "not_exported",
+                "reason": "RoyaleImitate no está instalado; el checkpoint PPO sí se guardó.",
+            }
         elapsed = time.perf_counter() - started
         status_path = target_dir / "axr_training_status.json"
         status_path.write_text(json.dumps({
@@ -184,6 +199,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             "total_steps_requested": plan.total_steps,
             "elapsed_seconds": elapsed,
             "saved_bot_prefix": str(target_dir / "axr_bot"),
+            "warm_start": plan.warm_start,
+            "actor_artifact": actor_artifact,
         }, indent=2) + "\n", encoding="utf-8")
         print(f"Entrenamiento finalizado. Estado: {status_path}")
         return 0
@@ -199,13 +216,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
 
 
-if __name__ == "__main__":
-    raise SystemExit(main())
-
-
-# ---------------------------------------------------------------------------
 # Experiment bookkeeping and configuration helpers
-# --------------------------------------------------------------------------------------
 
 import hashlib
 import platform
@@ -335,7 +346,7 @@ def write_run_manifest(plan: TrainingPlan, directory: Path) -> Path:
     }
     target = directory / "axr_run_manifest.json"
     temporary = target.with_suffix(".json.tmp")
-    temporary.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\\n", encoding="utf-8")
+    temporary.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     temporary.replace(target)
     return target
 
@@ -348,7 +359,7 @@ def append_jsonl_event(path: Path, event: Mapping[str, Any]) -> None:
         **dict(event),
     }
     with path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\\n")
+        handle.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
 
 
 def read_jsonl_events(path: Path) -> list[dict[str, Any]]:
@@ -440,7 +451,7 @@ def write_experiment_card(plan: TrainingPlan, directory: Path) -> Path:
         "- [ ] Preserve the manifest and raw evaluation JSON.",
     ])
     target = directory / "EXPERIMENT_CARD.md"
-    target.write_text("\\n".join(lines) + "\\n", encoding="utf-8")
+    target.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return target
 
 
@@ -510,5 +521,9 @@ def write_preflight_report(plan: TrainingPlan, directory: Path) -> Path:
         "next_step": "Review warnings and install/verify RoyaleGym before training.",
     }
     target = directory / "axr_preflight.json"
-    target.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\\n", encoding="utf-8")
+    target.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     return target
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

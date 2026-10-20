@@ -72,6 +72,7 @@ La presencia de un módulo de entrenamiento no significa que ya exista un modelo
 - [Auditoría de integración](docs/INTEGRATION_AUDIT.md)
 - [Hoja de ruta](docs/ROADMAP.md)
 - [Auditoría de py-clash-bot y emuladores](docs/PYCLASHBOT_RESEARCH.md)
+- [Matriz de extracción técnica y pendientes](docs/EXTRACTION_MATRIX.md)
 
 ## Licencias y límites
 

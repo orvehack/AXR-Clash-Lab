@@ -61,3 +61,36 @@ La pipeline cooperativa usa [RoyaleImitate](https://github.com/RoyaleGym/RoyaleI
 `--warm-start` espera una carpeta de artefacto de actor de RoyaleImitate, no una ruta a un checkpoint PPO arbitrario. La compatibilidad del artefacto debe ser verificada por RoyaleImitate/RoyaleLearn. Tras entrenar, AXR intenta exportar `runs/.../axr_actor` como artefacto reutilizable; si RoyaleImitate no está instalado, conserva el checkpoint PPO normal y registra que no exportó el actor.
 
 Esto es una ruta de integración de código, no evidencia de que el entrenamiento ya haya funcionado: no se ha ejecutado en la PC del usuario ni validado con el motor Rust.
+
+
+### Instalar el componente de imitación
+
+En un entorno Python compatible con las versiones upstream, instala las dependencias de imitación y lectura de replays:
+
+```powershell
+python -m pip install "royaleimitate[replays,torch]"
+```
+
+Sigue además la guía upstream de [RoyaleGym](https://github.com/RoyaleGym/RoyaleGym) para el motor y las dependencias de entrenamiento. No mezcles instalaciones de versiones incompatibles en el mismo entorno.
+
+### Ejecutar la pipeline de demostraciones
+
+Primero, sin descargar ni entrenar:
+
+```powershell
+python -m src.imitate_agent --plan-only --matches 25 --out-dir runs/axr_imitation_smoke
+```
+
+Luego, una prueba pequeña:
+
+```powershell
+python -m src.imitate_agent --matches 25 --epochs 2 --out-dir runs/axr_imitation_smoke
+```
+
+La carpeta `runs/axr_imitation_smoke/axr_imitation_actor` contiene el artefacto que puede usarse para inicializar PPO:
+
+```powershell
+python -m src.train_agent --plan-only --steps 10000 --save-dir runs/axr_ppo_smoke --warm-start runs/axr_imitation_smoke/axr_imitation_actor
+```
+
+Quita `--plan-only` de `src.train_agent` únicamente después de revisar el plan. Las rutas y ejemplos anteriores no se han ejecutado en el equipo del usuario.

@@ -368,8 +368,8 @@ class AXRApp(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
         self.title(f"{APP_NAME} · {APP_VERSION}")
-        self.geometry("1260x820")
-        self.minsize(960, 640)
+        self.geometry("1080x700")
+        self.minsize(820, 560)
         self.configure(background=DARK)
         self.matches: list[MatchRecord] = []
         self.decisions: list[DecisionRecord] = []
@@ -453,15 +453,15 @@ class AXRApp(tk.Tk):
         style.configure("Card.TFrame", background=PANEL)
         style.configure("TLabel", background=DARK, foreground=TEXT)
         style.configure("Muted.TLabel", background=PANEL, foreground=MUTED, font=("Segoe UI", 9))
-        style.configure("Metric.TLabel", background=PANEL, foreground=ACCENT, font=("Segoe UI Semibold", 23))
+        style.configure("Metric.TLabel", background=PANEL, foreground=ACCENT, font=("Segoe UI Semibold", 19))
         style.configure("Title.TLabel", background=DARK, foreground=TEXT, font=FONT_TITLE)
         style.configure("Subtitle.TLabel", background=DARK, foreground=MUTED, font=("Segoe UI", 10))
-        style.configure("TButton", padding=(12, 7), background=PANEL_ALT, foreground=TEXT)
+        style.configure("TButton", padding=(8, 5), background=PANEL_ALT, foreground=TEXT)
         style.map("TButton", background=[("active", "#304656")])
-        style.configure("Accent.TButton", background="#245943", foreground="#ffffff", padding=(12, 8))
+        style.configure("Accent.TButton", background="#245943", foreground="#ffffff", padding=(8, 6))
         style.map("Accent.TButton", background=[("active", "#2e7757")])
         style.configure("TNotebook", background=DARK, borderwidth=0)
-        style.configure("TNotebook.Tab", background=PANEL, foreground=TEXT, padding=(16, 10))
+        style.configure("TNotebook.Tab", background=PANEL, foreground=TEXT, padding=(10, 6))
         style.map("TNotebook.Tab", background=[("selected", PANEL_ALT)])
         style.configure("Treeview", background=PANEL, fieldbackground=PANEL, foreground=TEXT, rowheight=28)
         style.configure("Treeview.Heading", background=PANEL_ALT, foreground=TEXT, font=FONT_BOLD)
@@ -470,7 +470,7 @@ class AXRApp(tk.Tk):
         style.configure("TCombobox", fieldbackground=PANEL_ALT, foreground=TEXT)
 
     def _build_shell(self) -> None:
-        header = ttk.Frame(self, padding=(22, 18, 22, 12))
+        header = ttk.Frame(self, padding=(14, 10, 14, 8))
         header.pack(fill="x")
         brand = ttk.Frame(header)
         brand.pack(side="left", fill="x", expand=True)
@@ -484,9 +484,9 @@ class AXRApp(tk.Tk):
         ttk.Button(header, text="▶ Start emulador", style="Accent.TButton", command=self.start_emulator_dialog).pack(side="right", padx=(8, 0))
         ttk.Button(header, text="Abrir carpeta del proyecto", command=lambda: self._safe_open(ROOT)).pack(side="right")
         separator = ttk.Separator(self, orient="horizontal")
-        separator.pack(fill="x", padx=22)
+        separator.pack(fill="x", padx=14)
         self.notebook = ttk.Notebook(self)
-        self.notebook.pack(fill="both", expand=True, padx=22, pady=16)
+        self.notebook.pack(fill="both", expand=True, padx=14, pady=9)
         self.dashboard_tab = ttk.Frame(self.notebook, padding=12)
         self.matches_tab = ttk.Frame(self.notebook, padding=12)
         self.decisions_tab = ttk.Frame(self.notebook, padding=12)
@@ -505,7 +505,7 @@ class AXRApp(tk.Tk):
         self._build_experiments()
         self._build_runs()
         self._build_settings()
-        footer = ttk.Frame(self, padding=(22, 7))
+        footer = ttk.Frame(self, padding=(14, 5))
         footer.pack(fill="x")
         ttk.Label(footer, textvariable=self.status_var, style="Subtitle.TLabel").pack(side="left")
         ttk.Label(footer, text="AXR · sin conexión al cliente oficial", style="Subtitle.TLabel").pack(side="right")
@@ -646,6 +646,8 @@ class AXRApp(tk.Tk):
         form.pack(fill="x", anchor="n")
         self.experiment_vars = {
             "steps": tk.StringVar(value="200000"),
+            "policy_lr": tk.StringVar(value="0.0002"),
+            "checkpoint_every": tk.StringVar(value="50000"),
             "seed": tk.StringVar(value="7"),
             "n_envs": tk.StringVar(value="4"),
             "opponent": tk.StringVar(value="random"),
@@ -660,6 +662,8 @@ class AXRApp(tk.Tk):
             ("Entornos paralelos", "n_envs"),
             ("Canales de red", "channels"),
             ("Bloques de red", "blocks"),
+            ("Tasa de aprendizaje PPO", "policy_lr"),
+            ("Guardar checkpoint cada N pasos", "checkpoint_every"),
         ]
         for index, (label, key) in enumerate(fields):
             row, column = divmod(index, 2)
@@ -667,7 +671,7 @@ class AXRApp(tk.Tk):
             cell.grid(row=row, column=column, sticky="ew", padx=(0, 16), pady=8)
             ttk.Label(cell, text=label, background=PANEL).pack(anchor="w")
             ttk.Entry(cell, textvariable=self.experiment_vars[key], width=32).pack(fill="x", pady=(4, 0))
-        row = 3
+        row = 4
         for label, key, values in [
             ("Oponente", "opponent", ("random", "noop", "self")),
             ("Dispositivo", "device", ("auto", "cpu", "cuda")),
@@ -923,12 +927,16 @@ class AXRApp(tk.Tk):
             n_envs = int(variables["n_envs"].get())
             channels = int(variables["channels"].get())
             blocks = int(variables["blocks"].get())
+            policy_lr = float(variables["policy_lr"].get())
+            checkpoint_every = int(variables["checkpoint_every"].get())
         except ValueError as exc:
             raise ValueError("Los pasos, semilla y parámetros de red deben ser números enteros.") from exc
         if steps < 1:
             raise ValueError("Los pasos deben ser mayores que cero.")
-        if n_envs < 1 or channels < 1 or blocks < 1:
-            raise ValueError("Entornos, canales y bloques deben ser mayores que cero.")
+        if n_envs < 1 or channels < 1 or blocks < 1 or checkpoint_every < 1:
+            raise ValueError("Entornos, canales, bloques y frecuencia de checkpoint deben ser mayores que cero.")
+        if not math.isfinite(policy_lr) or policy_lr <= 0 or policy_lr > 0.01:
+            raise ValueError("La tasa de aprendizaje debe ser mayor que cero y como máximo 0.01.")
         if variables["opponent"].get() not in {"random", "noop", "self"}:
             raise ValueError("Oponente inválido.")
         return {
@@ -937,6 +945,9 @@ class AXRApp(tk.Tk):
             "n_envs": n_envs,
             "trunk_channels": channels,
             "trunk_blocks": blocks,
+            "policy_lr": policy_lr,
+            "critic_lr": policy_lr,
+            "checkpoint_every": checkpoint_every,
             "opponent": variables["opponent"].get(),
             "device": variables["device"].get(),
             "save_dir": variables["save_dir"].get().strip(),
@@ -981,6 +992,8 @@ class AXRApp(tk.Tk):
             f'--opponent {plan["opponent"]} --device {plan["device"]} '
             f'--trunk-channels {plan["trunk_channels"]} '
             f'--trunk-blocks {plan["trunk_blocks"]} '
+            f'--policy-lr {plan["policy_lr"]} --critic-lr {plan["critic_lr"]} '
+            f'--checkpoint-every {plan["checkpoint_every"]} '
             f'--save-dir "{plan["save_dir"]}"'
         )
         self._set_text(

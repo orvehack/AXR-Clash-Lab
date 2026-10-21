@@ -11,6 +11,8 @@ La aplicación de escritorio de AXR tiene una interfaz propia inspirada en patro
 | Ruta | Responsabilidad |
 |---|---|
 | `src/axr_desktop.py` | Interfaz de escritorio y paneles locales |
+| `src/doctor.py` | Diagnóstico local sin instalar paquetes ni ejecutar el juego |
+| `scripts/first_run_windows.ps1` | Primera comprobación guiada de Windows 11: entorno virtual, pruebas y planes de prueba |
 | `src/match_stats.py` | Métricas de partidas y trofeos desde CSV |
 | `src/analyze_matches.py` | Analizador inicial por CLI |
 | `src/decision_dataset.py` | Validación y auditoría de ejemplos etiquetados |
@@ -26,6 +28,23 @@ La aplicación de escritorio de AXR tiene una interfaz propia inspirada en patro
 | `data/decisions_template.csv` | Plantilla para decisiones etiquetadas |
 | `tests/` | Pruebas unitarias de los contratos locales |
 | `.github/workflows/tests.yml` | Flujo de pruebas de GitHub Actions |
+
+## Primera ejecución en Windows 11
+
+Para preparar el proyecto sin instalar todavía PyTorch ni las dependencias grandes de IA, abre PowerShell en la carpeta del repositorio y ejecuta:
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass
+.\scripts\first_run_windows.ps1
+```
+
+El cambio de política solo dura en esa ventana de PowerShell. El script crea `.venv`, ejecuta el diagnóstico, las pruebas offline y los modos `--plan-only`; después te pregunta si quieres abrir la interfaz. **No instala el stack de entrenamiento ni demuestra que RoyaleGym funcione.** Consulta [la guía paso a paso](docs/QUICKSTART_WINDOWS.md) si prefieres hacerlo manualmente.
+
+Diagnóstico manual:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.doctor
+```
 
 ## Lanzamiento de emuladores
 

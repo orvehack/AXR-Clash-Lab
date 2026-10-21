@@ -18,6 +18,7 @@ La aplicación de escritorio de AXR tiene una interfaz propia inspirada en patro
 | `src/royalegym_contract.py` | Prueba corta de contrato `reset/step` con `MockEngine` y acciones legales |
 | `src/royalegym_baseline.py` | Agentes de referencia y evaluación offline |
 | `src/model_registry.py` | Model artifact manifests, SHA-256 fingerprints, paired evaluation, and uncertainty-aware promotion gates. |
+| `src/registry_bridge.py` | Converts baseline JSON results to registry JSONL, skipping unverified outcomes. |
 | `src/imitate_agent.py` | Replay-to-imitation pipeline; creates an actor artifact for PPO warm-start. |
 | `src/train_agent.py` | Configuración y punto de entrada de entrenamiento |
 | `src/emulator_manager.py` | Detección, diagnóstico y lanzamiento local de MEmu/BlueStacks |
@@ -125,3 +126,12 @@ python -m src.model_registry compare --evaluations runs/evaluations.jsonl --cand
 ```
 
 The command returns a non-zero exit code if promotion gates are not met. This is intentional: insufficient evidence must not be treated as success. The registry does not execute or validate the model itself. Simulator episodes without verifiable terminal crown counts are marked `unknown` instead of being mislabeled as wins based on shaped reward.
+
+To import a saved baseline evaluation into the registry (only verified blue-seat outcomes are imported):
+
+```powershell
+py -m src.royalegym_baseline --agent lane-pressure --opponent random --episodes 30 --seed 5000 --output runs/axr_eval.json
+py -m src.registry_bridge --input runs/axr_eval.json --model-id axr-lane-v1 --opponent-id random-v1 --output runs/evaluations.jsonl
+```
+
+The first command still requires a working RoyaleGym installation. The bridge does not invent results: `unknown` and `limit` episodes are skipped, and duplicate seeds are rejected.

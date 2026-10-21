@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import csv
 import json
+import math
 import os
 import queue
 import subprocess
@@ -168,6 +169,8 @@ def load_decisions(path: Path = DECISIONS_FILE) -> list[DecisionRecord]:
             timestamp = float(raw_time)
         except ValueError as exc:
             raise DataError(f"Fila {line}: timestamp_seconds no es numérico.") from exc
+        if not math.isfinite(timestamp):
+            raise DataError(f"Fila {line}: timestamp_seconds debe ser un número finito.")
         if timestamp < 0:
             raise DataError(f"Fila {line}: timestamp_seconds no puede ser negativo.")
         own_raw = (row.get("own_elixir") or "").strip()
@@ -375,9 +378,69 @@ class AXRApp(tk.Tk):
         self.selected_match_file = tk.StringVar(value=str(MATCHES_FILE))
         self.selected_decision_file = tk.StringVar(value=str(DECISIONS_FILE))
         self._configure_styles()
+        self._build_menu()
         self._build_shell()
         self.refresh_all()
         self.after(150, self._drain_background_events)
+
+    def _build_menu(self) -> None:
+        """Build a native menu bar with shortcuts for the main workspace."""
+        menu_bar = tk.Menu(self)
+        file_menu = tk.Menu(menu_bar, tearoff=False)
+        file_menu.add_command(label="Actualizar datos", accelerator="Ctrl+R", command=self.refresh_all)
+        file_menu.add_separator()
+        file_menu.add_command(label="Abrir carpeta del proyecto", command=lambda: self._safe_open(ROOT))
+        file_menu.add_command(label="Abrir carpeta de datos", command=lambda: self._safe_open(DATA_DIR))
+        file_menu.add_command(label="Abrir carpeta de experimentos", command=lambda: self._safe_open(RUNS_DIR, create=True))
+        file_menu.add_separator()
+        file_menu.add_command(label="Salir", accelerator="Alt+F4", command=self.destroy)
+        menu_bar.add_cascade(label="Archivo", menu=file_menu)
+
+        view_menu = tk.Menu(menu_bar, tearoff=False)
+        tab_labels = ("Inicio", "Partidas", "Decisiones", "Laboratorio IA", "Experimentos guardados", "Datos y configuración")
+        for index, label in enumerate(tab_labels):
+            view_menu.add_command(
+                label=label,
+                accelerator=f"Ctrl+{index + 1}",
+                command=lambda selected=index: self._select_tab(selected),
+            )
+        menu_bar.add_cascade(label="Ver", menu=view_menu)
+
+        tools_menu = tk.Menu(menu_bar, tearoff=False)
+        tools_menu.add_command(label="Validar dataset de decisiones", command=self.validate_decisions)
+        tools_menu.add_command(label="Guardar diagnóstico", command=self.export_diagnostics)
+        tools_menu.add_command(label="Preparar plan de experimento", command=self.save_experiment_plan)
+        menu_bar.add_cascade(label="Herramientas", menu=tools_menu)
+
+        help_menu = tk.Menu(menu_bar, tearoff=False)
+        help_menu.add_command(label="Acerca de AXR Clash Lab", command=self._show_about)
+        menu_bar.add_cascade(label="Ayuda", menu=help_menu)
+        self.configure(menu=menu_bar)
+
+        self.bind_all("<Control-r>", lambda _event: self.refresh_all())
+        self.bind_all("<Control-R>", lambda _event: self.refresh_all())
+        for index in range(6):
+            self.bind_all(
+                f"<Control-Key-{index + 1}>",
+                lambda _event, selected=index: self._select_tab(selected),
+            )
+        self.bind_all("<F1>", lambda _event: self._show_about())
+
+    def _select_tab(self, index: int) -> None:
+        """Select a workspace tab if the notebook has been initialized."""
+        notebook = getattr(self, "notebook", None)
+        if notebook is not None and index < len(notebook.tabs()):
+            notebook.select(index)
+
+    def _show_about(self) -> None:
+        messagebox.showinfo(
+            f"Acerca de {APP_NAME}",
+            f"{APP_NAME} {APP_VERSION}\\n\\n"
+            "Banco de trabajo local para analizar partidas, etiquetar decisiones "
+            "y preparar experimentos offline. No automatiza partidas en los "
+            "servidores oficiales ni afirma que un entrenamiento se haya ejecutado.",
+            parent=self,
+        )
 
     def _configure_styles(self) -> None:
         style = ttk.Style(self)

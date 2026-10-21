@@ -309,8 +309,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     return 0
 
 
-if __name__ == "__main__":
-    raise SystemExit(main())
 
 
 # ---------------------------------------------------------------------------
@@ -491,7 +489,7 @@ def save_evaluation_bundle(summary: EvaluationSummary, output_dir: Path) -> dict
     csv_path = output_dir / "episodes.csv"
     markdown_path = output_dir / "EVALUATION.md"
     payload = evaluation_report(summary)
-    json_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\\n", encoding="utf-8")
+    json_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     export_results_csv(summary.results, csv_path)
     interval = payload.get("win_rate_interval")
     interval_text = (
@@ -524,7 +522,7 @@ def save_evaluation_bundle(summary: EvaluationSummary, output_dir: Path) -> dict
         "- A high score against a random agent is not proof of competitive strength.",
         "- Compare against multiple baselines and keep held-out seeds.",
     ])
-    markdown_path.write_text("\\n".join(lines) + "\\n", encoding="utf-8")
+    markdown_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return {"json": str(json_path), "csv": str(csv_path), "markdown": str(markdown_path)}
 
 
@@ -625,5 +623,8 @@ def write_round_robin_manifest(names: Sequence[str], output: Path, episodes: int
         "warning": "This is a matchup plan, not evidence that any battle was executed.",
     }
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\\n", encoding="utf-8")
+    output.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     return output
+
+if __name__ == "__main__":
+    raise SystemExit(main())

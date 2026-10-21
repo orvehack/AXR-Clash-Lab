@@ -24,6 +24,13 @@ class RegistryBridgeTests(unittest.TestCase):
         self.assertEqual(report["records_imported"], 3)
         self.assertEqual(report["episodes_skipped_by_outcome"], {"unknown": 1, "limit": 1})
 
+    def test_rejects_report_for_unexpected_agent(self) -> None:
+        payload = {"agent": "random", "results": [{"seed": 1, "winner": "blue"}]}
+        with self.assertRaisesRegex(ValueError, "no del esperado"):
+            convert_baseline_report(
+                payload, "axr-v1", "opponent-v1", expected_agent="lane-pressure"
+            )
+
     def test_rejects_duplicate_seeds(self) -> None:
         payload = {"results": [
             {"seed": 1, "winner": "blue"},

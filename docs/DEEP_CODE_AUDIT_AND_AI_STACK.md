@@ -116,3 +116,19 @@ No recomiendo mezclar directamente probabilidades/logits de redes distintas: pue
 - [FirstLight_CR README](https://github.com/Jaasssoooonnnnn/FirstLight_CR)
 - [ClashAI README](https://github.com/vegetableleaf/ClashAI)
 - [MSU-AI Clash Royale Gym](https://github.com/MSU-AI/clash-royale-gym)
+
+
+## Nueva pieza añadida: registro y selección de modelos
+
+- `src/model_registry.py` registra evaluaciones JSONL, resume resultados, crea manifiestos de artefactos con SHA-256 y compara modelos por semillas comunes.
+- `tests/test_model_registry.py` cubre ida y vuelta JSONL, umbral mínimo de pruebas pareadas, promoción y rechazo de semillas duplicadas, y huellas de artefactos.
+- La promoción queda en `unverified` por defecto. La comparación no ejecuta modelos, no crea resultados falsos y no sustituye una evaluación real del simulador.
+- Para una primera prueba real, el evaluador existente debe exportar resultados con `model_id`, `seed`, `opponent_id`, `outcome` y, cuando existan, coronas y duración. Luego se pueden comparar checkpoints en condiciones pareadas.
+
+Comando previsto:
+
+```powershell
+python -m src.model_registry compare --evaluations runs/evaluations.jsonl --candidate axr-v2 --baseline axr-v1 --opponent league-v1 --minimum-pairs 30
+```
+
+Todavía falta conectar el evaluador de RoyaleGym a este formato y ejecutar las pruebas.

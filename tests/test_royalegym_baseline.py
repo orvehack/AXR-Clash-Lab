@@ -1,4 +1,7 @@
+import json
+import tempfile
 import unittest
+from pathlib import Path
 
 from src.royalegym_baseline import (
     LanePressureAgent,
@@ -7,6 +10,7 @@ from src.royalegym_baseline import (
     legal_actions,
     make_agent,
     play_episode,
+    save_evaluation_bundle,
 )
 
 
@@ -104,6 +108,18 @@ class BaselineAgentTests(unittest.TestCase):
             NoCrownInfoEnv(), RandomLegalAgent(seed=1), RandomLegalAgent(seed=2), 77
         )
         self.assertEqual(result.winner, "unknown")
+
+    def test_evaluation_bundle_writes_real_newlines_and_valid_json(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            summary = evaluate(lambda: FakeEnv(), episodes=2, seed_start=200)
+            paths = save_evaluation_bundle(summary, Path(temporary))
+            payload = Path(paths["json"]).read_text(encoding="utf-8")
+            markdown = Path(paths["markdown"]).read_text(encoding="utf-8")
+            self.assertEqual(json.loads(payload)["episodes"], 2)
+            self.assertTrue(payload.endswith("\n"))
+            self.assertNotIn("\\n", payload)
+            self.assertTrue(markdown.endswith("\n"))
+            self.assertNotIn("\\n", markdown)
 
     def test_episode_limit_is_reported(self):
         env = FakeEnv()

@@ -105,6 +105,7 @@ No recomiendo mezclar directamente probabilidades/logits de redes distintas: pue
 4. Registrar versiones de RoyaleGym/RoyaleLearn/RoyaleImitate/RoyaleSim, configuración del entorno, huella del modelo y métricas.
 5. Conectar la UI a estado/logs de entrenamiento sin bloquearla.
 6. Sólo después, integrar visión para vídeos y comparar su estado extraído contra anotaciones humanas.
+7. **Añadido:** `src/doctor.py` comprueba el entorno sin instalar nada; `scripts/first_run_windows.ps1` prepara `.venv`, ejecuta las pruebas offline y valida los planes sin descargar modelos. El flujo de GitHub Actions ahora también ejecuta estas comprobaciones de humo. El resultado de CI debe revisarse en GitHub antes de considerar el paso validado.
 
 ## Fuentes primarias revisadas
 - [RoyaleGym README](https://github.com/RoyaleGym/RoyaleGym)
@@ -124,7 +125,8 @@ No recomiendo mezclar directamente probabilidades/logits de redes distintas: pue
 
 - `src/model_registry.py` registra evaluaciones JSONL, resume resultados, crea manifiestos de artefactos con SHA-256 y compara modelos por semillas comunes con una barrera bootstrap pareada del 95%.
 - `src/registry_bridge.py` convierte informes de evaluación del baseline en registros JSONL y no importa episodios sin resultado verificable.
-- `tests/test_registry_bridge.py` cubre conversión de resultados válidos, omisión de episodios no clasificados y rechazo de semillas duplicadas.
+- `tests/test_registry_bridge.py` cubre conversión de resultados válidos, omisión de episodios no clasificados, rechazo de semillas duplicadas y validación del nombre del agente fuente.
+- `src/doctor.py` y `scripts/first_run_windows.ps1` agregan una primera comprobación local guiada sin instalar todavía el stack pesado de IA.
 - `tests/test_model_registry.py` cubre ida y vuelta JSONL, umbral mínimo de pruebas pareadas, promoción, semillas duplicadas, huellas de artefactos y un caso donde la mejora aparente no basta por incertidumbre.
 - La promoción queda en `unverified` por defecto. La comparación no ejecuta modelos, no crea resultados falsos y no sustituye una evaluación real del simulador.
 - Para una primera prueba real, el evaluador existente debe exportar resultados con `model_id`, `seed`, `opponent_id`, `outcome` y, cuando existan, coronas y duración. Luego se pueden comparar checkpoints en condiciones pareadas.

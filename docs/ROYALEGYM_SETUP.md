@@ -44,6 +44,8 @@ Las pruebas unitarias de los helpers usan objetos falsos y no requieren instalar
 3. Ejecutar `python -m src.royalegym_contract --steps 3` y guardar su JSON como evidencia del entorno instalado.
 4. Implementar una política de referencia que use solo acciones válidas.
 5. Ejecutar episodios simulados con el motor Rust y registrar semillas, recompensas y resultados antes de entrenar un modelo.
+6. No usar la recompensa acumulada como sustituto del resultado: AXR usa coronas terminales cuando existen y marca `unknown` si no puede verificarlo.
+7. Para promover checkpoints, usa semillas pareadas y la barrera bootstrap de `src/model_registry.py`; una tasa alta aislada no basta.
 
 No conectes este adaptador a partidas competitivas reales. El objetivo aquí es simulación offline y experimentación reproducible.
 

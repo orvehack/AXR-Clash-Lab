@@ -16,6 +16,7 @@ La aplicación de escritorio de AXR tiene una interfaz propia inspirada en patro
 | `src/decision_dataset.py` | Validación y auditoría de ejemplos etiquetados |
 | `src/simulator_adapter.py` | Diagnóstico de instalación y espacios de RoyaleGym sin ejecutar acciones |\n| `src/royalegym_contract.py` | Prueba corta de contrato `reset/step` con `MockEngine` y acciones legales |
 | `src/royalegym_baseline.py` | Agentes de referencia y evaluación offline |
+| `src/model_registry.py` | Model artifact manifests, SHA-256 fingerprints, paired evaluation, and conservative promotion gates. |
 | `src/imitate_agent.py` | Replay-to-imitation pipeline; creates an actor artifact for PPO warm-start. |
 | `src/train_agent.py` | Configuración y punto de entrada de entrenamiento |
 | `src/emulator_manager.py` | Detección, diagnóstico y lanzamiento local de MEmu/BlueStacks |
@@ -107,3 +108,16 @@ python -m src.train_agent --plan-only --steps 10000 --save-dir runs/axr_ppo_smok
 ```
 
 No es necesario empezar con miles de partidas. Primero hay que confirmar que el motor, los formatos de replay, la validación de demostraciones y la compatibilidad del actor funcionan.
+
+
+### Model registry and promotion gates
+
+AXR can record evaluation outcomes in JSONL and compare a candidate against a baseline using the same held-out seeds. It refuses promotion when there are too few paired evaluations, when the candidate does not reach the required score, or when its improvement is too small.
+
+Example:
+
+```powershell
+python -m src.model_registry compare --evaluations runs/evaluations.jsonl --candidate axr-v2 --baseline axr-v1 --opponent league-v1 --minimum-pairs 30
+```
+
+The command returns a non-zero exit code if promotion gates are not met. This is intentional: insufficient evidence must not be treated as success. The registry does not execute or validate the model itself.

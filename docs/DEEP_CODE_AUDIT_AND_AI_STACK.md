@@ -17,6 +17,8 @@ Fecha de revisión: 2026-10-20. Esta auditoría se basa en lectura de archivos d
 - `src/decision_dataset.py` ya cubre validación, huellas de filas, duplicados, balance de etiquetas, particiones agrupadas, detección de fuga y exportación de auditoría. Antes de conectarlo a una red neuronal, hay que acordar un esquema de observación/acción que corresponda exactamente al entorno de entrenamiento.
 - `src/match_stats.py` resume resultados humanos; `src/royalegym_baseline.py` evalúa políticas del simulador. No mezclar esas dos fuentes como si fueran la misma distribución: una partida registrada y un episodio simulado deben llevar etiquetas de origen distintas.
 - El baseline debe seguir siendo el control de comparación. No declarar que una red es mejor por una única partida ni por recompensa de entrenamiento: usar semillas reservadas, varias partidas, tasa de victoria con intervalo de confianza, coronas y métricas de calidad de datos.
+- **Corrección aplicada en `src/royalegym_baseline.py`:** al terminar un episodio, las coronas disponibles determinan el resultado. Si el entorno no informa coronas terminales, el resultado queda como `unknown`; la recompensa moldeada no se trata como una victoria real.
+- **Corrección aplicada en `src/model_registry.py`:** la promoción también requiere que el límite inferior de un intervalo bootstrap pareado del 95% sea mayor que cero. Es una barrera conservadora, no una garantía universal.
 
 ### 3. Contrato del simulador
 - `src/simulator_adapter.py` es una sonda diagnóstica, no un adaptador completo de decisiones.
@@ -121,7 +123,7 @@ No recomiendo mezclar directamente probabilidades/logits de redes distintas: pue
 ## Nueva pieza añadida: registro y selección de modelos
 
 - `src/model_registry.py` registra evaluaciones JSONL, resume resultados, crea manifiestos de artefactos con SHA-256 y compara modelos por semillas comunes.
-- `tests/test_model_registry.py` cubre ida y vuelta JSONL, umbral mínimo de pruebas pareadas, promoción y rechazo de semillas duplicadas, y huellas de artefactos.
+- `tests/test_model_registry.py` cubre ida y vuelta JSONL, umbral mínimo de pruebas pareadas, promoción, semillas duplicadas, huellas de artefactos y un caso donde la mejora aparente no basta por incertidumbre.
 - La promoción queda en `unverified` por defecto. La comparación no ejecuta modelos, no crea resultados falsos y no sustituye una evaluación real del simulador.
 - Para una primera prueba real, el evaluador existente debe exportar resultados con `model_id`, `seed`, `opponent_id`, `outcome` y, cuando existan, coronas y duración. Luego se pueden comparar checkpoints en condiciones pareadas.
 

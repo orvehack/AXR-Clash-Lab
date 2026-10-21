@@ -101,7 +101,7 @@ No recomiendo mezclar directamente probabilidades/logits de redes distintas: pue
 ## Próximos pasos técnicos
 1. Probar en CI la limpieza de `src/train_agent.py` antes de lanzar entrenamientos largos.
 2. **Añadido:** `src/imitate_agent.py` prepara shards desde replays y ejecuta `RoyaleImitate.clone`; exporta el actor y un informe. Las pruebas de argumentos están en `tests/test_imitate_agent.py`.
-3. Añadir un evaluador de checkpoints con semillas reservadas y comparación pareada.
+3. **Añadido:** `src/registry_bridge.py` conecta los JSON de `royalegym_baseline.py` con `model_registry.py`, omitiendo resultados `unknown`/`limit` y rechazando semillas duplicadas. Falta ejecutar la integración en un entorno RoyaleGym instalado.
 4. Registrar versiones de RoyaleGym/RoyaleLearn/RoyaleImitate/RoyaleSim, configuración del entorno, huella del modelo y métricas.
 5. Conectar la UI a estado/logs de entrenamiento sin bloquearla.
 6. Sólo después, integrar visión para vídeos y comparar su estado extraído contra anotaciones humanas.
@@ -122,7 +122,9 @@ No recomiendo mezclar directamente probabilidades/logits de redes distintas: pue
 
 ## Nueva pieza añadida: registro y selección de modelos
 
-- `src/model_registry.py` registra evaluaciones JSONL, resume resultados, crea manifiestos de artefactos con SHA-256 y compara modelos por semillas comunes.
+- `src/model_registry.py` registra evaluaciones JSONL, resume resultados, crea manifiestos de artefactos con SHA-256 y compara modelos por semillas comunes con una barrera bootstrap pareada del 95%.
+- `src/registry_bridge.py` convierte informes de evaluación del baseline en registros JSONL y no importa episodios sin resultado verificable.
+- `tests/test_registry_bridge.py` cubre conversión de resultados válidos, omisión de episodios no clasificados y rechazo de semillas duplicadas.
 - `tests/test_model_registry.py` cubre ida y vuelta JSONL, umbral mínimo de pruebas pareadas, promoción, semillas duplicadas, huellas de artefactos y un caso donde la mejora aparente no basta por incertidumbre.
 - La promoción queda en `unverified` por defecto. La comparación no ejecuta modelos, no crea resultados falsos y no sustituye una evaluación real del simulador.
 - Para una primera prueba real, el evaluador existente debe exportar resultados con `model_id`, `seed`, `opponent_id`, `outcome` y, cuando existan, coronas y duración. Luego se pueden comparar checkpoints en condiciones pareadas.

@@ -86,6 +86,25 @@ class BaselineAgentTests(unittest.TestCase):
         self.assertEqual(result.blue_crowns, 2)
         self.assertGreaterEqual(result.duration_seconds, 0)
 
+    def test_terminal_shaped_reward_is_not_misreported_as_a_win(self):
+        class NoCrownInfoEnv(FakeEnv):
+            def step(self, actions):
+                self.steps += 1
+                obs = {
+                    "blue": {"action_mask": [1, 1, 0, 0]},
+                    "red": {"action_mask": [1, 0, 1, 0]},
+                }
+                rewards = {"blue": 100.0, "red": -100.0}
+                done = self.steps >= 1
+                terminated = {"blue": done, "red": done}
+                truncated = {"blue": False, "red": False}
+                return obs, rewards, terminated, truncated, {}
+
+        result = play_episode(
+            NoCrownInfoEnv(), RandomLegalAgent(seed=1), RandomLegalAgent(seed=2), 77
+        )
+        self.assertEqual(result.winner, "unknown")
+
     def test_episode_limit_is_reported(self):
         env = FakeEnv()
         result = play_episode(env, RandomLegalAgent(), RandomLegalAgent(), 10, max_decisions=1)

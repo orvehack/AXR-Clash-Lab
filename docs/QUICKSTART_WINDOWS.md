@@ -1,6 +1,21 @@
 # Inicio rápido en Windows 11
 
-Esta guía ejecuta el análisis localmente. No necesita conectarse al juego ni instalar paquetes externos.
+Esta guía empieza con comprobaciones seguras y no instala el stack pesado de IA. El entrenamiento y el motor RoyaleGym se configuran después de confirmar que el proyecto base funciona.
+
+## Opción recomendada: comprobación guiada
+
+1. Descarga el repositorio como se indica más abajo y entra a su carpeta.
+2. Abre PowerShell dentro de esa carpeta.
+3. Ejecuta:
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass
+.\scripts\first_run_windows.ps1
+```
+
+El script exige Python 3.12, crea el entorno aislado `.venv`, ejecuta `src.doctor`, corre las pruebas offline y valida los planes sin iniciar entrenamiento ni descargar modelos. Al final te pregunta si quieres abrir la interfaz. Si falla, copia el error completo antes de seguir; no instales más paquetes a ciegas.
+
+Si prefieres revisar cada paso manualmente, sigue la guía de abajo.
 
 ## 1. Descargar el repositorio
 
@@ -19,7 +34,7 @@ Si Windows dice que `git` no existe, descarga el ZIP desde GitHub y descompríme
 py --version
 ```
 
-Se recomienda Python 3.11 o posterior.
+Para la interfaz y las pruebas básicas se recomienda Python 3.11 o posterior. Para el flujo documentado de RoyaleGym, usa Python 3.12.
 
 ## 3. Ejecutar el análisis
 

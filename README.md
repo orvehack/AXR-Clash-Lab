@@ -31,6 +31,8 @@ La aplicación de escritorio de AXR tiene una interfaz propia inspirada en patro
 
 ## Primera ejecución en Windows 11
 
+**Si es tu primera vez, sigue [la guía de inicio en PC](docs/PC_START_HERE.md).** Después de descargar y extraer el ZIP completo, puedes hacer doble clic en `INICIAR_AXR_WINDOWS.bat` para ejecutar las comprobaciones guiadas.
+
 Para preparar el proyecto sin instalar todavía PyTorch ni las dependencias grandes de IA, abre PowerShell en la carpeta del repositorio y ejecuta:
 
 ```powershell

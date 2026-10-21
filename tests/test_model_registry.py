@@ -50,6 +50,27 @@ class ModelRegistryTests(unittest.TestCase):
         self.assertEqual(result["paired_games"], 30)
         self.assertAlmostEqual(result["delta"], 1.0)
 
+    def test_promotion_rejected_when_paired_evidence_is_uncertain(self) -> None:
+        rows = []
+        for seed in range(1, 31):
+            rows.append(Evaluation(
+                "candidate", seed, "opponent",
+                "win" if seed <= 18 else "loss",
+            ))
+            rows.append(Evaluation(
+                "baseline", seed, "opponent",
+                "win" if seed <= 15 else "loss",
+            ))
+        result = paired_comparison(
+            rows, "candidate", "baseline", "opponent",
+            minimum_pairs=30, required_win_rate=0.55, required_delta=0.05,
+        )
+        self.assertAlmostEqual(result["candidate_win_rate"], 0.6)
+        self.assertAlmostEqual(result["delta"], 0.1)
+        self.assertFalse(result["promote"])
+        self.assertEqual(result["reason"], "paired_uncertainty_too_high")
+        self.assertEqual(set(result["paired_delta_ci_95"]), {"lower", "upper"})
+
     def test_rejects_duplicate_seed_for_same_model(self) -> None:
         rows = [
             Evaluation("candidate", 1, "opponent", "win"),

@@ -90,7 +90,7 @@ class RunCard:
     modified: float
 
 
-class DataError(Exception):
+class DataError(ValueError):
     """Raised when a local dataset cannot be interpreted safely."""
 
 

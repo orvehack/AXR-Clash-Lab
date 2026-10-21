@@ -20,10 +20,16 @@ def convert_baseline_report(
     payload: dict[str, Any],
     model_id: str,
     opponent_id: str,
+    expected_agent: str | None = None,
 ) -> tuple[list[Evaluation], dict[str, Any]]:
     """Convert a royalegym_baseline summary into registry records and import stats."""
     if not model_id.strip() or not opponent_id.strip():
         raise ValueError("model_id y opponent_id son obligatorios")
+    source_agent = payload.get("agent")
+    if expected_agent and source_agent != expected_agent:
+        raise ValueError(
+            f"El reporte es del agente {source_agent!r}, no del esperado {expected_agent!r}"
+        )
     results = payload.get("results")
     if not isinstance(results, list):
         raise ValueError("El JSON no contiene una lista 'results' de episodios")
@@ -83,14 +89,16 @@ def convert_baseline_report(
         converted.append(record)
 
     return converted, {
-        "source_agent": payload.get("agent"),
+        "source_agent": source_agent,
+        "expected_agent": expected_agent,
+        "source_agent_verified": (source_agent == expected_agent) if expected_agent else False,
         "source_opponent": payload.get("opponent"),
         "episodes_in_report": len(results),
         "records_imported": len(converted),
         "episodes_skipped_by_outcome": skipped,
         "model_id": model_id,
         "opponent_id": opponent_id,
-        "note": "Registry records describe the blue seat only; verify the source agent matches model_id.",
+        "note": "Registry records describe the blue seat only; pass --expected-agent to verify the source agent name before import.",
     }
 
 
@@ -99,13 +107,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--input", type=Path, required=True, help="JSON generado por royalegym_baseline")
     parser.add_argument("--model-id", required=True, help="Identificador/versionado del agente que jugó como blue")
     parser.add_argument("--opponent-id", required=True, help="Identificador del oponente que jugó como red")
+    parser.add_argument("--expected-agent", default=None, help="Nombre exacto de --agent en el informe original; falla si no coincide")
     parser.add_argument("--output", type=Path, default=Path("runs/evaluations.jsonl"))
     args = parser.parse_args(argv)
     try:
         payload = json.loads(args.input.read_text(encoding="utf-8"))
         if not isinstance(payload, dict):
             raise ValueError("El archivo de entrada debe contener un objeto JSON")
-        records, report = convert_baseline_report(payload, args.model_id, args.opponent_id)
+        records, report = convert_baseline_report(payload, args.model_id, args.opponent_id, args.expected_agent)
         count = append_evaluations(args.output, records)
         report["output"] = str(args.output)
         report["records_appended"] = count

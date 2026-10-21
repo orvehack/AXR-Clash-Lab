@@ -48,7 +48,7 @@ def diagnose(root: Path | None = None) -> dict[str, Any]:
     python_supported = sys.version_info >= (3, 11)
     missing_paths = [path for path, exists in required.items() if not exists]
     missing_optional = [name for name, available in optional.items() if not available]
-    core_ok = python_supported and not missing_paths and tkinter_available
+    core_ok = python_supported and not missing_paths
     return {
         "project": "AXR Clash Lab",
         "project_root": str(project_root),
@@ -57,6 +57,7 @@ def diagnose(root: Path | None = None) -> dict[str, Any]:
         "platform": platform.platform(),
         "git_available": shutil.which("git") is not None,
         "tkinter_available": tkinter_available,
+        "gui_ready": tkinter_available,
         "required_paths": required,
         "missing_required_paths": missing_paths,
         "optional_ml_modules": optional,
@@ -67,6 +68,7 @@ def diagnose(root: Path | None = None) -> dict[str, Any]:
             "This diagnostic does not install dependencies or start training.",
             "Optional ML packages may be installed later in a dedicated virtual environment.",
             "The presence of a package does not prove API compatibility or a successful training run.",
+            "If tkinter_available is false, the desktop UI will not open until Python/Tk is repaired."
         ],
     }
 

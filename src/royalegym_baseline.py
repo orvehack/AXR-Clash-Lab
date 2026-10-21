@@ -195,17 +195,20 @@ def play_episode(
         blue_done = bool(terminated.get("blue", False) or truncated.get("blue", False))
         red_done = bool(terminated.get("red", False) or truncated.get("red", False))
         if blue_done or red_done:
-            if blue_reward > red_reward:
-                winner = "blue"
-            elif red_reward > blue_reward:
-                winner = "red"
+            # Prefer terminal crown counts over shaped rewards: a reward function may
+            # award intermediate progress and is not necessarily the match result.
+            blue_crowns = _extract_crowns(last_info, "blue")
+            red_crowns = _extract_crowns(last_info, "red")
+            if blue_crowns is not None and red_crowns is not None:
+                winner = (
+                    "blue" if blue_crowns > red_crowns
+                    else "red" if red_crowns > blue_crowns
+                    else "draw"
+                )
             else:
-                blue_crowns = _extract_crowns(last_info, "blue")
-                red_crowns = _extract_crowns(last_info, "red")
-                if blue_crowns is not None and red_crowns is not None:
-                    winner = "blue" if blue_crowns > red_crowns else "red" if red_crowns > blue_crowns else "draw"
-                else:
-                    winner = "draw"
+                # Do not invent a win/loss from shaped rewards when the environment
+                # does not expose a terminal result. Keep the episode unclassified.
+                winner = "unknown"
             break
 
     return BattleResult(
@@ -421,9 +424,15 @@ def summarize_result_quality(results: Sequence[BattleResult]) -> dict[str, Any]:
     if not results:
         return {"warnings": ["No hay resultados para evaluar."], "episodes": 0}
     limits = sum(result.winner == "limit" for result in results)
+    unknown = sum(result.winner == "unknown" for result in results)
     missing_crowns = sum(result.blue_crowns is None or result.red_crowns is None for result in results)
     if limits:
         warnings.append(f"{limits} episodios alcanzaron max_decisions sin ganador.")
+    if unknown:
+        warnings.append(
+            f"{unknown} episodios terminaron sin resultado verificable por coronas; "
+            "no se clasificaron usando recompensas moldeadas."
+        )
     if missing_crowns:
         warnings.append(f"{missing_crowns} episodios no reportaron coronas para ambos asientos.")
     if len({result.seed for result in results}) != len(results):
@@ -436,6 +445,7 @@ def summarize_result_quality(results: Sequence[BattleResult]) -> dict[str, Any]:
         "episodes": len(results),
         "unique_seeds": len({result.seed for result in results}),
         "limit_episodes": limits,
+        "unknown_outcome_episodes": unknown,
         "missing_crown_records": missing_crowns,
         "warnings": warnings,
     }

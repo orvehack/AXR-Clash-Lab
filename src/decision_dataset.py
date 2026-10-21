@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
 from collections import Counter
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -43,7 +44,10 @@ def _float_cell(row: dict[str, str], column: str, line: int, issues: list[str]) 
     except ValueError:
         issues.append(f"Fila {line}: {column} debe ser numérico, recibido {raw!r}.")
         return None
-    if not ELIXIR_MIN <= value <= ELIXIR_MAX:
+    if not math.isfinite(value):
+        issues.append(f"Fila {line}: {column} debe ser un número finito.")
+        return None
+    if column in {"own_elixir", "opponent_elixir"} and not ELIXIR_MIN <= value <= ELIXIR_MAX:
         issues.append(f"Fila {line}: {column} fuera del rango {ELIXIR_MIN}..{ELIXIR_MAX}.")
     return value
 

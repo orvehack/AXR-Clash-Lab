@@ -11,6 +11,8 @@ import hashlib
 import json
 import math
 import os
+import random
+import statistics
 import tempfile
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -106,6 +108,33 @@ def summarize(evaluations: Sequence[Evaluation], model_id: str, opponent_id: str
     }
 
 
+def _bootstrap_mean_interval(
+    values: Sequence[float],
+    repetitions: int = 2000,
+    confidence: float = 0.95,
+    seed: int = 7,
+) -> tuple[float, float] | None:
+    """Deterministic percentile-bootstrap CI for paired per-seed score deltas."""
+    if repetitions < 100:
+        raise ValueError("repetitions debe ser al menos 100")
+    if not 0.0 < confidence < 1.0:
+        raise ValueError("confidence debe estar entre 0 y 1")
+    if not values:
+        return None
+    rng = random.Random(seed)
+    sample_size = len(values)
+    means = sorted(
+        statistics.fmean(rng.choice(values) for _ in range(sample_size))
+        for _ in range(repetitions)
+    )
+    lower_index = max(0, int(((1.0 - confidence) / 2.0) * repetitions))
+    upper_index = min(
+        repetitions - 1,
+        int((1.0 - (1.0 - confidence) / 2.0) * repetitions) - 1,
+    )
+    return means[lower_index], means[upper_index]
+
+
 def paired_comparison(
     evaluations: Sequence[Evaluation],
     candidate_id: str,
@@ -156,7 +185,19 @@ def paired_comparison(
     cand_score = sum(score(candidate[seed]) for seed in common) / len(common)
     base_score = sum(score(baseline[seed]) for seed in common) / len(common)
     delta = cand_score - base_score
-    promote = cand_score >= required_win_rate and delta >= required_delta
+    paired_deltas = [score(candidate[seed]) - score(baseline[seed]) for seed in common]
+    interval = _bootstrap_mean_interval(paired_deltas)
+    lower_bound, upper_bound = interval if interval is not None else (None, None)
+    score_gate = cand_score >= required_win_rate
+    delta_gate = delta >= required_delta
+    uncertainty_gate = lower_bound is not None and lower_bound > 0.0
+    promote = score_gate and delta_gate and uncertainty_gate
+    if promote:
+        reason = "gates_passed"
+    elif not uncertainty_gate:
+        reason = "paired_uncertainty_too_high"
+    else:
+        reason = "promotion_gates_not_met"
     return {
         "candidate_id": candidate_id,
         "baseline_id": baseline_id,
@@ -166,10 +207,12 @@ def paired_comparison(
         "candidate_win_rate": cand_score,
         "baseline_win_rate": base_score,
         "delta": delta,
+        "paired_delta_ci_95": {"lower": lower_bound, "upper": upper_bound},
         "required_win_rate": required_win_rate,
         "required_delta": required_delta,
+        "confidence_gate": "95% paired bootstrap lower bound must be > 0",
         "promote": promote,
-        "reason": "gates_passed" if promote else "promotion_gates_not_met",
+        "reason": reason,
         "common_seeds": common,
     }
 

@@ -14,9 +14,10 @@ La aplicación de escritorio de AXR tiene una interfaz propia inspirada en patro
 | `src/match_stats.py` | Métricas de partidas y trofeos desde CSV |
 | `src/analyze_matches.py` | Analizador inicial por CLI |
 | `src/decision_dataset.py` | Validación y auditoría de ejemplos etiquetados |
-| `src/simulator_adapter.py` | Diagnóstico de instalación y espacios de RoyaleGym sin ejecutar acciones |\n| `src/royalegym_contract.py` | Prueba corta de contrato `reset/step` con `MockEngine` y acciones legales |
+| `src/simulator_adapter.py` | Diagnóstico de instalación y espacios de RoyaleGym sin ejecutar acciones |
+| `src/royalegym_contract.py` | Prueba corta de contrato `reset/step` con `MockEngine` y acciones legales |
 | `src/royalegym_baseline.py` | Agentes de referencia y evaluación offline |
-| `src/model_registry.py` | Model artifact manifests, SHA-256 fingerprints, paired evaluation, and conservative promotion gates. |
+| `src/model_registry.py` | Model artifact manifests, SHA-256 fingerprints, paired evaluation, and uncertainty-aware promotion gates. |
 | `src/imitate_agent.py` | Replay-to-imitation pipeline; creates an actor artifact for PPO warm-start. |
 | `src/train_agent.py` | Configuración y punto de entrada de entrenamiento |
 | `src/emulator_manager.py` | Detección, diagnóstico y lanzamiento local de MEmu/BlueStacks |
@@ -47,7 +48,9 @@ Si el emulador está instalado en una ruta no estándar, hay que configurar esa 
 ```powershell
 py -m unittest discover -s tests -v
 py -m src.match_stats data/matches.csv
-py -m src.decision_dataset data/decisions_template.csv\n# Si RoyaleGym está instalado, comprueba su API Python de forma offline:\npy -m src.royalegym_contract --steps 3
+py -m src.decision_dataset data/decisions_template.csv
+# Si RoyaleGym está instalado, comprueba su API Python de forma offline:
+py -m src.royalegym_contract --steps 3
 ```
 
 Los datos incluidos en `data/matches.csv` son **ficticios** y solo sirven para probar la estructura. No representan el historial real del usuario.
@@ -74,7 +77,8 @@ La presencia de un módulo de entrenamiento no significa que ya exista un modelo
 - [Auditoría de integración](docs/INTEGRATION_AUDIT.md)
 - [Hoja de ruta](docs/ROADMAP.md)
 - [Auditoría de py-clash-bot y emuladores](docs/PYCLASHBOT_RESEARCH.md)
-- [Matriz de extracción técnica y pendientes](docs/EXTRACTION_MATRIX.md)\n- [Prueba de contrato de RoyaleGym](docs/ROYALEGYM_SETUP.md)
+- [Matriz de extracción técnica y pendientes](docs/EXTRACTION_MATRIX.md)
+- [Prueba de contrato de RoyaleGym](docs/ROYALEGYM_SETUP.md)
 
 ## Licencias y límites
 
@@ -112,7 +116,7 @@ No es necesario empezar con miles de partidas. Primero hay que confirmar que el 
 
 ### Model registry and promotion gates
 
-AXR can record evaluation outcomes in JSONL and compare a candidate against a baseline using the same held-out seeds. It refuses promotion when there are too few paired evaluations, when the candidate does not reach the required score, or when its improvement is too small.
+AXR can record evaluation outcomes in JSONL and compare a candidate against a baseline using the same held-out seeds. It refuses promotion when there are too few paired evaluations, when the candidate does not reach the required score, when its improvement is too small, or when a deterministic 95% paired-bootstrap interval still includes zero.
 
 Example:
 
@@ -120,4 +124,4 @@ Example:
 python -m src.model_registry compare --evaluations runs/evaluations.jsonl --candidate axr-v2 --baseline axr-v1 --opponent league-v1 --minimum-pairs 30
 ```
 
-The command returns a non-zero exit code if promotion gates are not met. This is intentional: insufficient evidence must not be treated as success. The registry does not execute or validate the model itself.
+The command returns a non-zero exit code if promotion gates are not met. This is intentional: insufficient evidence must not be treated as success. The registry does not execute or validate the model itself. Simulator episodes without verifiable terminal crown counts are marked `unknown` instead of being mislabeled as wins based on shaped reward.

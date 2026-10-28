@@ -110,6 +110,18 @@ class CsvLoadingTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "no es numérico"):
                 load_decisions(path)
 
+    def test_load_decisions_bad_timestamp_is_a_value_error(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "decisions.csv"
+            path.write_text(
+                "match_id,timestamp_seconds,phase,event_type,own_elixir,opponent_elixir,"
+                "own_card,own_lane,opponent_card,decision_label,outcome_label,notes\\n"
+                "m1,invalid,opening,play,5,4,Giant,left,,play_giant,positive,\\n",
+                encoding="utf-8",
+            )
+            with self.assertRaises(ValueError):
+                load_decisions(path)
+
 
 class DecisionSummaryTests(unittest.TestCase):
     def test_counts_matches_phases_labels_and_notes(self):

@@ -46,6 +46,11 @@ class DecisionDatasetTests(unittest.TestCase):
         self.assertEqual(report.invalid_rows, 1)
         self.assertTrue(any("fuera del rango" in issue for issue in report.issues))
 
+    def test_non_finite_numeric_values_are_rejected(self):
+        report = validate_rows([valid_row(timestamp_seconds="nan")])
+        self.assertEqual(report.invalid_rows, 1)
+        self.assertTrue(any("número finito" in issue for issue in report.issues))
+
     def test_load_template_csv(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "decisions.csv"
